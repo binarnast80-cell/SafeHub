@@ -1,5 +1,5 @@
 -- =====================================================
--- 🛡️ SAFE HUB V1.04: MATERIAL DESIGN | MOBILE-FIRST
+-- 🛡️ SAFE HUB V1.09.2: MATERIAL DESIGN | MOBILE-FIRST
 -- 🎮 Game: The Rake / Horror Games
 -- 📱 Target: Delta, Arceus X (Android)
 -- =====================================================
@@ -112,7 +112,7 @@ titleLabel.BackgroundTransparency = 1
 titleLabel.Position = UDim2.new(0, 8, 0, 0)
 titleLabel.Size = UDim2.new(0.7, 0, 1, 0)
 titleLabel.Font = Enum.Font.GothamMedium
-titleLabel.Text = "🛡️ V1.04"
+titleLabel.Text = "🛡️ V1.09.2"
 titleLabel.TextColor3 = Colors.TextWhite
 titleLabel.TextSize = 9
 titleLabel.TextXAlignment = Enum.TextXAlignment.Left
@@ -508,53 +508,19 @@ CreateToggle(playerTab, "🛡️ No Fall Damage", function(state)
 end, 3)
 
 -- ============================================================
---    ANTI-CHEAT BYPASS: METATABLE HOOKS (safe for mobile)
+--    ANTI-CHEAT BYPASS: __namecall HOOK (safe for mobile)
 -- ============================================================
--- Uses local guard (not _G) to avoid detection via getgc/_G scan
+-- NOTE: __index hook REMOVED — it intercepts ALL property reads
+-- on ALL instances, causing catastrophic lag on mobile executors.
+-- __namecall only fires on :Method() calls, which is much lighter.
+-- Uses local guard (not _G) to avoid detection via getgc/_G scan.
 local _hookInstalled = false
 if not _hookInstalled then
     _hookInstalled = true
     local metatable = getrawmetatable(game)
     local originalNamecall = metatable.__namecall
-    local originalIndex = metatable.__index
     setreadonly(metatable, false)
 
-    -- ========== __index HOOK ==========
-    -- Spoofs property reads so anti-cheat sees default values
-    metatable.__index = function(self, key)
-        -- 🚫 Anti-Kick: return dummy function when game tries Player:Kick()
-        if key == "Kick" then
-            if self == LocalPlayer then
-                return function() end -- swallow the kick
-            end
-        -- 🏃 WalkSpeed spoof: anti-cheat reads 16 (default)
-        elseif key == "WalkSpeed" then
-            if speedEnabled and typeof(self) == "Instance" then
-                if self:IsA("Humanoid") then return 16 end
-            end
-        -- 🔭 FOV spoof: anti-cheat reads 70 (default)
-        elseif key == "FieldOfView" then
-            if fovEnabled and typeof(self) == "Instance" then
-                if self:IsA("Camera") then return 70 end
-            end
-        -- 🏃 JumpPower spoof
-        elseif key == "JumpPower" then
-            if speedEnabled and typeof(self) == "Instance" then
-                if self:IsA("Humanoid") then return 50 end
-            end
-        -- 📡 Velocity spoof: hide real velocity from server checks
-        elseif key == "Velocity" then
-            if antiDetectEnabled and typeof(self) == "Instance" then
-                if self:IsA("BasePart") then
-                    return Vector3.new(0, 0, 0)
-                end
-            end
-        end
-        return originalIndex(self, key)
-    end
-
-    -- ========== __namecall HOOK ==========
-    -- Blocks fall damage + silently drops anti-cheat reporting remotes
     metatable.__namecall = function(self, ...)
         -- 🛡️ No Fall Damage (identical to working v3)
         if noFallDamage == true then
