@@ -957,54 +957,42 @@ CreateButton(exploitsTab, "🚪 Open SafeHouse", function()
     end)
 end, 9)
 
--- 8. Open Tower hatch {Beta} (Observation Tower — lever + trapdoor)
+-- 8. Open Tower hatch {Beta} — targets Trap Door specifically
 CreateButton(exploitsTab, "🔓 Open Tower {Beta}", function()
-    -- Known paths for Observation Tower / Trapdoor
-    local towerNames = {"ObservationTower", "Observation Tower", "Tower", "WatchTower", "RadioTower"}
-    local actionArgs = {"Door", "Open", "Lever", "Toggle", "Interact", "Close", "TrapDoor", "EmergencyRelease"}
+    local actionArgs = {"Door", "Open", "Lever", "Toggle", "Interact", "TrapDoor", "EmergencyRelease", "Emergency Release"}
 
-    for _, tName in pairs(towerNames) do
-        pcall(function()
-            local tower = Workspace.Map:FindFirstChild(tName)
-            if tower then
-                for _, obj in pairs(tower:GetDescendants()) do
-                    pcall(function()
-                        if obj:IsA("RemoteEvent") then
-                            for _, arg in pairs(actionArgs) do
-                                obj:FireServer(arg)
-                            end
-                        end
-                        if obj:IsA("ProximityPrompt") then
-                            fireproximityprompt(obj)
-                        end
-                        if obj:IsA("ClickDetector") then
-                            fireclickdetector(obj)
-                        end
-                    end)
-                end
-            end
-        end)
-    end
-
-    -- Search entire map for trapdoor/lever/hatch objects
+    -- Search entire map for Trap Door / TrapDoor / trap objects
     pcall(function()
         for _, obj in pairs(Workspace.Map:GetDescendants()) do
             local n = obj.Name:lower()
-            if n:match("trapdoor") or n:match("trap_door") or n:match("hatch")
-            or n:match("lever") or n:match("emergency") or n:match("release") then
+            if n:match("trap") or n:match("hatch") or n:match("emergency") or n:match("release") then
                 pcall(function()
-                    if obj:IsA("ProximityPrompt") then fireproximityprompt(obj) end
-                    if obj:IsA("ClickDetector") then fireclickdetector(obj) end
-                    -- Fire remotes inside the object
+                    -- Fire ProximityPrompts (set HoldDuration=0 for instant)
+                    if obj:IsA("ProximityPrompt") then
+                        obj.HoldDuration = 0
+                        fireproximityprompt(obj)
+                    end
+                    if obj:IsA("ClickDetector") then
+                        fireclickdetector(obj)
+                    end
+                    if obj:IsA("RemoteEvent") then
+                        for _, arg in pairs(actionArgs) do
+                            obj:FireServer(arg)
+                        end
+                    end
+                    -- Also check children of matching objects
                     for _, sub in pairs(obj:GetDescendants()) do
                         pcall(function()
+                            if sub:IsA("ProximityPrompt") then
+                                sub.HoldDuration = 0
+                                fireproximityprompt(sub)
+                            end
+                            if sub:IsA("ClickDetector") then fireclickdetector(sub) end
                             if sub:IsA("RemoteEvent") then
                                 for _, arg in pairs(actionArgs) do
                                     sub:FireServer(arg)
                                 end
                             end
-                            if sub:IsA("ProximityPrompt") then fireproximityprompt(sub) end
-                            if sub:IsA("ClickDetector") then fireclickdetector(sub) end
                         end)
                     end
                 end)
@@ -1013,19 +1001,24 @@ CreateButton(exploitsTab, "🔓 Open Tower {Beta}", function()
     end)
 end, 10)
 
--- 9. Fix Power (continuous loop — auto-repairs until done, allows movement)
+-- 9. Fix Power (continuous hold — simulates holding interaction)
 local fixPowerActive = false
 CreateButton(exploitsTab, "⚡ Fix Power", function()
-    if fixPowerActive then return end -- prevent double-click
+    if fixPowerActive then
+        fixPowerActive = false -- toggle off on second press
+        return
+    end
     fixPowerActive = true
     task.spawn(function()
         while fixPowerActive do
             pcall(function()
                 Workspace.Map.PowerStation.StationFolder.RemoteEvent:FireServer("StationStart")
             end)
+            -- Set HoldDuration=0 on all prompts then fire (simulates instant hold)
             pcall(function()
                 for _, descendant in pairs(Workspace.Map.PowerStation:GetDescendants()) do
                     if descendant:IsA("ProximityPrompt") then
+                        descendant.HoldDuration = 0
                         fireproximityprompt(descendant)
                     end
                 end
@@ -1041,7 +1034,7 @@ CreateButton(exploitsTab, "⚡ Fix Power", function()
                     end
                 end
             end)
-            task.wait(0.5)
+            task.wait(0.1) -- fast loop = simulates continuous hold
         end
         fixPowerActive = false
     end)
