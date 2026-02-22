@@ -4,791 +4,1239 @@
 -- 📱 Target: Delta, Arceus X (Android)
 -- =====================================================
 
+-- ================= SERVICES =================
 local CoreGui = (gethui and gethui()) or game:GetService("CoreGui")
 local Players = game:GetService("Players")
 local Lighting = game:GetService("Lighting")
 local RunService = game:GetService("RunService")
 local TweenService = game:GetService("TweenService")
-local WS = game:GetService("Workspace")
-local RS = game:GetService("ReplicatedStorage")
-local LP = Players.LocalPlayer
+local Workspace = game:GetService("Workspace")
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local LocalPlayer = Players.LocalPlayer
 
-pcall(function() if CoreGui:FindFirstChild("G_SH") then CoreGui.G_SH:Destroy() end end)
+-- Cleanup on re-execution (stealth name — looks like Roblox internal)
+local GUI_NAME = "RbxAnalyticsUI"
+pcall(function()
+    if CoreGui:FindFirstChild(GUI_NAME) then CoreGui[GUI_NAME]:Destroy() end
+end)
 
--- ================= TRACKED =================
-local allHL, allConn = {}, {}
-local function tC(c) table.insert(allConn, c) return c end
-local function tH(h) table.insert(allHL, h) return h end
+-- ================= TRACKED RESOURCES =================
+local allHighlights = {}
+local allConnections = {}
 
--- ================= COLORS (darker + more transparent) =================
-local C = {
-    Bg    = Color3.fromRGB(12, 12, 14),
-    Card  = Color3.fromRGB(26, 26, 30),
-    Hover = Color3.fromRGB(40, 40, 44),
-    Head  = Color3.fromRGB(10, 10, 12),
-    Acc   = Color3.fromRGB(120, 160, 235),
-    Txt   = Color3.fromRGB(220, 222, 225),
-    Dim   = Color3.fromRGB(120, 120, 130),
-    Off   = Color3.fromRGB(38, 38, 42),
-    Sep   = Color3.fromRGB(48, 48, 52),
-    Red   = Color3.fromRGB(255, 70, 70),
-}
-
-local twF = TweenInfo.new(0.12, Enum.EasingStyle.Quad)
-local twS = TweenInfo.new(0.25, Enum.EasingStyle.Quint)
-local function tw(o, p, i) TweenService:Create(o, i or twF, p):Play() end
-
--- ================= GUI =================
-local SG = Instance.new("ScreenGui")
-SG.Name = "G_SH"
-SG.Parent = CoreGui
-
-local MF = Instance.new("Frame")
-MF.Name = "M"
-MF.Parent = SG
-MF.BackgroundColor3 = C.Bg
-MF.BackgroundTransparency = 0.25
-MF.Position = UDim2.new(0.01, 0, 0.04, 0)
-MF.Size = UDim2.new(0, 295, 0, 195)
-MF.Active = true
-MF.Draggable = true
-MF.BorderSizePixel = 0
-MF.ClipsDescendants = true
-Instance.new("UICorner", MF).CornerRadius = UDim.new(0, 12)
-
--- Header (opaque)
-local HD = Instance.new("Frame")
-HD.Parent = MF
-HD.BackgroundColor3 = C.Head
-HD.BackgroundTransparency = 0
-HD.Size = UDim2.new(1, 0, 0, 22)
-HD.BorderSizePixel = 0
-HD.ZIndex = 10
-Instance.new("UICorner", HD).CornerRadius = UDim.new(0, 12)
-
-local HDB = Instance.new("Frame")
-HDB.Parent = HD
-HDB.BackgroundColor3 = C.Head
-HDB.Size = UDim2.new(1, 0, 0, 11)
-HDB.Position = UDim2.new(0, 0, 1, -11)
-HDB.BorderSizePixel = 0
-HDB.ZIndex = 10
-
-local aL = Instance.new("Frame")
-aL.Parent = MF
-aL.BackgroundColor3 = C.Acc
-aL.BackgroundTransparency = 0.5
-aL.Size = UDim2.new(1, 0, 0, 1)
-aL.Position = UDim2.new(0, 0, 0, 22)
-aL.BorderSizePixel = 0
-aL.ZIndex = 10
-
-local TT = Instance.new("TextLabel")
-TT.Parent = HD
-TT.BackgroundTransparency = 1
-TT.Position = UDim2.new(0, 8, 0, 0)
-TT.Size = UDim2.new(0.7, 0, 1, 0)
-TT.Font = Enum.Font.GothamMedium
-TT.Text = "🛡️ V1.04"
-TT.TextColor3 = C.Txt
-TT.TextSize = 9
-TT.TextXAlignment = Enum.TextXAlignment.Left
-TT.ZIndex = 11
-
-local MB = Instance.new("TextButton")
-MB.Parent = HD
-MB.BackgroundTransparency = 1
-MB.Position = UDim2.new(1, -24, 0, 0)
-MB.Size = UDim2.new(0, 24, 0, 22)
-MB.Font = Enum.Font.GothamBold
-MB.Text = "–"
-MB.TextColor3 = C.Acc
-MB.TextSize = 14
-MB.ZIndex = 11
-
--- Tab bar (16px)
-local TB = Instance.new("Frame")
-TB.Parent = MF
-TB.BackgroundColor3 = C.Bg
-TB.BackgroundTransparency = 0.3
-TB.Size = UDim2.new(1, 0, 0, 16)
-TB.Position = UDim2.new(0, 0, 0, 23)
-TB.BorderSizePixel = 0
-TB.ZIndex = 5
-
-local tabCfg = {
-    {key="Player",  label="Player",  x=0.03},
-    {key="Visuals", label="Visuals", x=0.35},
-    {key="Exploits",label="Exploits",x=0.67},
-}
-local tabBtns, tabFrames = {}, {}
-local curTab = "Player"
-
-local TI = Instance.new("Frame")
-TI.Parent = TB
-TI.BackgroundColor3 = C.Acc
-TI.Size = UDim2.new(0.28, 0, 0, 2)
-TI.Position = UDim2.new(0.03, 0, 1, -2)
-TI.BorderSizePixel = 0
-TI.ZIndex = 7
-
-for _, cfg in ipairs(tabCfg) do
-    local b = Instance.new("TextButton")
-    b.Parent = TB
-    b.BackgroundTransparency = 1
-    b.Position = UDim2.new(cfg.x, 0, 0, 0)
-    b.Size = UDim2.new(0.30, 0, 1, 0)
-    b.Font = Enum.Font.GothamMedium
-    b.Text = cfg.label
-    b.TextSize = 8
-    b.TextColor3 = (cfg.key == "Player") and C.Acc or C.Dim
-    b.ZIndex = 6
-    b.AutoButtonColor = false
-    tabBtns[cfg.key] = b
+local function trackConnection(connection)
+    table.insert(allConnections, connection)
+    return connection
 end
 
--- Content container
-local CB = Instance.new("Frame")
-CB.Parent = MF
-CB.BackgroundTransparency = 1
-CB.Position = UDim2.new(0, 0, 0, 40)
-CB.Size = UDim2.new(1, 0, 1, -43)
-CB.BorderSizePixel = 0
-
-local function makeTab(key)
-    local s = Instance.new("ScrollingFrame")
-    s.Name = key
-    s.Parent = CB
-    s.BackgroundColor3 = C.Card
-    s.BackgroundTransparency = 0.5
-    s.Size = UDim2.new(1, -6, 1, -2)
-    s.Position = UDim2.new(0, 3, 0, 1)
-    s.CanvasSize = UDim2.new(0, 0, 0, 450)
-    s.ScrollBarThickness = 2
-    s.ScrollBarImageColor3 = C.Acc
-    s.ScrollBarImageTransparency = 0.6
-    s.BorderSizePixel = 0
-    s.Visible = (key == "Player")
-    s.ClipsDescendants = true
-    Instance.new("UICorner", s).CornerRadius = UDim.new(0, 8)
-    local ly = Instance.new("UIListLayout", s)
-    ly.HorizontalAlignment = Enum.HorizontalAlignment.Center
-    ly.Padding = UDim.new(0, 3)
-    ly.SortOrder = Enum.SortOrder.LayoutOrder
-    local pd = Instance.new("UIPadding", s)
-    pd.PaddingTop = UDim.new(0, 3)
-    pd.PaddingBottom = UDim.new(0, 3)
-    tabFrames[key] = s
+local function trackHighlight(highlight)
+    table.insert(allHighlights, highlight)
+    return highlight
 end
-for _, c in ipairs(tabCfg) do makeTab(c.key) end
 
-local function switchTab(k)
-    curTab = k
-    for n, f in pairs(tabFrames) do f.Visible = (n == k) end
-    for n, b in pairs(tabBtns) do tw(b, {TextColor3 = (n == k) and C.Acc or C.Dim}) end
-    for i, c in ipairs(tabCfg) do
-        if c.key == k then tw(TI, {Position = UDim2.new(c.x, 0, 1, -2)}) end
+-- ================= COLOR PALETTE (dark & transparent) =================
+local Colors = {
+    Background      = Color3.fromRGB(12, 12, 14),
+    Card            = Color3.fromRGB(26, 26, 30),
+    CardHover       = Color3.fromRGB(40, 40, 44),
+    Header          = Color3.fromRGB(10, 10, 12),
+    Accent          = Color3.fromRGB(120, 160, 235),
+    TextWhite       = Color3.fromRGB(220, 222, 225),
+    TextDim         = Color3.fromRGB(120, 120, 130),
+    ToggleOff       = Color3.fromRGB(38, 38, 42),
+    Separator       = Color3.fromRGB(48, 48, 52),
+    Red             = Color3.fromRGB(255, 70, 70),
+    DisabledOverlay = Color3.fromRGB(8, 8, 10),
+}
+
+-- ================= TWEEN HELPERS =================
+local tweenFast = TweenInfo.new(0.12, Enum.EasingStyle.Quad)
+local tweenSmooth = TweenInfo.new(0.25, Enum.EasingStyle.Quint)
+
+local function tweenTo(object, properties, info)
+    TweenService:Create(object, info or tweenFast, properties):Play()
+end
+
+-- ================= SCREEN GUI =================
+local ScreenGui = Instance.new("ScreenGui")
+ScreenGui.Name = GUI_NAME
+ScreenGui.Parent = CoreGui
+
+-- ================= MAIN FRAME =================
+local MainFrame = Instance.new("Frame")
+MainFrame.Name = "Main"
+MainFrame.Parent = ScreenGui
+MainFrame.BackgroundColor3 = Colors.Background
+MainFrame.BackgroundTransparency = 0.25
+MainFrame.Position = UDim2.new(0.01, 0, 0.04, 0)
+MainFrame.Size = UDim2.new(0, 295, 0, 195)
+MainFrame.Active = true
+MainFrame.Draggable = true
+MainFrame.BorderSizePixel = 0
+MainFrame.ClipsDescendants = true
+Instance.new("UICorner", MainFrame).CornerRadius = UDim.new(0, 12)
+
+-- ================= HEADER (opaque) =================
+local HeaderBar = Instance.new("Frame")
+HeaderBar.Parent = MainFrame
+HeaderBar.BackgroundColor3 = Colors.Header
+HeaderBar.BackgroundTransparency = 0
+HeaderBar.Size = UDim2.new(1, 0, 0, 22)
+HeaderBar.BorderSizePixel = 0
+HeaderBar.ZIndex = 10
+Instance.new("UICorner", HeaderBar).CornerRadius = UDim.new(0, 12)
+
+-- Fill bottom corners
+local headerFill = Instance.new("Frame")
+headerFill.Parent = HeaderBar
+headerFill.BackgroundColor3 = Colors.Header
+headerFill.Size = UDim2.new(1, 0, 0, 11)
+headerFill.Position = UDim2.new(0, 0, 1, -11)
+headerFill.BorderSizePixel = 0
+headerFill.ZIndex = 10
+
+-- Accent line
+local accentLine = Instance.new("Frame")
+accentLine.Parent = MainFrame
+accentLine.BackgroundColor3 = Colors.Accent
+accentLine.BackgroundTransparency = 0.5
+accentLine.Size = UDim2.new(1, 0, 0, 1)
+accentLine.Position = UDim2.new(0, 0, 0, 22)
+accentLine.BorderSizePixel = 0
+accentLine.ZIndex = 10
+
+-- Title
+local titleLabel = Instance.new("TextLabel")
+titleLabel.Parent = HeaderBar
+titleLabel.BackgroundTransparency = 1
+titleLabel.Position = UDim2.new(0, 8, 0, 0)
+titleLabel.Size = UDim2.new(0.7, 0, 1, 0)
+titleLabel.Font = Enum.Font.GothamMedium
+titleLabel.Text = "🛡️ V1.04"
+titleLabel.TextColor3 = Colors.TextWhite
+titleLabel.TextSize = 9
+titleLabel.TextXAlignment = Enum.TextXAlignment.Left
+titleLabel.ZIndex = 11
+
+-- Minimize button
+local minimizeButton = Instance.new("TextButton")
+minimizeButton.Parent = HeaderBar
+minimizeButton.BackgroundTransparency = 1
+minimizeButton.Position = UDim2.new(1, -24, 0, 0)
+minimizeButton.Size = UDim2.new(0, 24, 0, 22)
+minimizeButton.Font = Enum.Font.GothamBold
+minimizeButton.Text = "–"
+minimizeButton.TextColor3 = Colors.Accent
+minimizeButton.TextSize = 14
+minimizeButton.ZIndex = 11
+
+-- ================= TAB BAR =================
+local tabBar = Instance.new("Frame")
+tabBar.Parent = MainFrame
+tabBar.BackgroundColor3 = Colors.Background
+tabBar.BackgroundTransparency = 0.3
+tabBar.Size = UDim2.new(1, 0, 0, 16)
+tabBar.Position = UDim2.new(0, 0, 0, 23)
+tabBar.BorderSizePixel = 0
+tabBar.ZIndex = 5
+
+local tabConfig = {
+    {key = "Player",   label = "Player",   x = 0.03},
+    {key = "Visuals",  label = "Visuals",  x = 0.35},
+    {key = "Exploits", label = "Exploits", x = 0.67},
+}
+
+local tabButtons = {}
+local tabFrames = {}
+local currentTab = "Player"
+
+-- Tab indicator (animated underline)
+local tabIndicator = Instance.new("Frame")
+tabIndicator.Parent = tabBar
+tabIndicator.BackgroundColor3 = Colors.Accent
+tabIndicator.Size = UDim2.new(0.28, 0, 0, 2)
+tabIndicator.Position = UDim2.new(0.03, 0, 1, -2)
+tabIndicator.BorderSizePixel = 0
+tabIndicator.ZIndex = 7
+
+for _, config in ipairs(tabConfig) do
+    local button = Instance.new("TextButton")
+    button.Parent = tabBar
+    button.BackgroundTransparency = 1
+    button.Position = UDim2.new(config.x, 0, 0, 0)
+    button.Size = UDim2.new(0.30, 0, 1, 0)
+    button.Font = Enum.Font.GothamMedium
+    button.Text = config.label
+    button.TextSize = 8
+    button.TextColor3 = (config.key == "Player") and Colors.Accent or Colors.TextDim
+    button.ZIndex = 6
+    button.AutoButtonColor = false
+    tabButtons[config.key] = button
+end
+
+-- ================= CONTENT CONTAINER =================
+local contentBox = Instance.new("Frame")
+contentBox.Parent = MainFrame
+contentBox.BackgroundTransparency = 1
+contentBox.Position = UDim2.new(0, 0, 0, 40)
+contentBox.Size = UDim2.new(1, 0, 1, -43)
+contentBox.BorderSizePixel = 0
+
+local function createTabFrame(key)
+    local scroll = Instance.new("ScrollingFrame")
+    scroll.Name = key
+    scroll.Parent = contentBox
+    scroll.BackgroundColor3 = Colors.Card
+    scroll.BackgroundTransparency = 0.5
+    scroll.Size = UDim2.new(1, -6, 1, -2)
+    scroll.Position = UDim2.new(0, 3, 0, 1)
+    scroll.CanvasSize = UDim2.new(0, 0, 0, 550)
+    scroll.ScrollBarThickness = 2
+    scroll.ScrollBarImageColor3 = Colors.Accent
+    scroll.ScrollBarImageTransparency = 0.6
+    scroll.BorderSizePixel = 0
+    scroll.Visible = (key == "Player")
+    scroll.ClipsDescendants = true
+    Instance.new("UICorner", scroll).CornerRadius = UDim.new(0, 8)
+    local layout = Instance.new("UIListLayout", scroll)
+    layout.HorizontalAlignment = Enum.HorizontalAlignment.Center
+    layout.Padding = UDim.new(0, 3)
+    layout.SortOrder = Enum.SortOrder.LayoutOrder
+    local padding = Instance.new("UIPadding", scroll)
+    padding.PaddingTop = UDim.new(0, 3)
+    padding.PaddingBottom = UDim.new(0, 3)
+    tabFrames[key] = scroll
+end
+
+for _, config in ipairs(tabConfig) do createTabFrame(config.key) end
+
+-- ================= TAB SWITCHING =================
+local function switchTab(key)
+    currentTab = key
+    for name, frame in pairs(tabFrames) do frame.Visible = (name == key) end
+    for name, button in pairs(tabButtons) do
+        tweenTo(button, {TextColor3 = (name == key) and Colors.Accent or Colors.TextDim})
+    end
+    for _, config in ipairs(tabConfig) do
+        if config.key == key then
+            tweenTo(tabIndicator, {Position = UDim2.new(config.x, 0, 1, -2)})
+        end
     end
 end
-for k, b in pairs(tabBtns) do b.MouseButton1Click:Connect(function() switchTab(k) end) end
 
--- Minimize
-local isMin = false
-MB.MouseButton1Click:Connect(function()
-    isMin = not isMin
-    if isMin then
-        TB.Visible = false; CB.Visible = false; aL.Visible = false
-        tw(MF, {Size = UDim2.new(0, 85, 0, 22)}, twS)
-        MB.Text = "+"
+for key, button in pairs(tabButtons) do
+    button.MouseButton1Click:Connect(function() switchTab(key) end)
+end
+
+-- ================= MINIMIZE / PILL =================
+local isMinimized = false
+minimizeButton.MouseButton1Click:Connect(function()
+    isMinimized = not isMinimized
+    if isMinimized then
+        tabBar.Visible = false
+        contentBox.Visible = false
+        accentLine.Visible = false
+        tweenTo(MainFrame, {Size = UDim2.new(0, 85, 0, 22)}, tweenSmooth)
+        minimizeButton.Text = "+"
     else
-        tw(MF, {Size = UDim2.new(0, 295, 0, 195)}, twS)
-        MB.Text = "–"
-        task.delay(0.25, function() TB.Visible = true; CB.Visible = true; aL.Visible = true end)
+        tweenTo(MainFrame, {Size = UDim2.new(0, 295, 0, 195)}, tweenSmooth)
+        minimizeButton.Text = "–"
+        task.delay(0.25, function()
+            tabBar.Visible = true
+            contentBox.Visible = true
+            accentLine.Visible = true
+        end)
     end
 end)
 
--- ================= UI FACTORIES =================
 
-local function Toggle(par, txt, cb, ord)
-    local h = Instance.new("Frame")
-    h.Parent = par; h.BackgroundColor3 = C.Off; h.BackgroundTransparency = 0.4
-    h.Size = UDim2.new(0.96, 0, 0, 20); h.BorderSizePixel = 0; h.LayoutOrder = ord or 0
-    Instance.new("UICorner", h).CornerRadius = UDim.new(0, 6)
+-- ================= UI FACTORY FUNCTIONS =================
 
-    local l = Instance.new("TextLabel", h)
-    l.BackgroundTransparency = 1; l.Position = UDim2.new(0, 6, 0, 0)
-    l.Size = UDim2.new(1, -36, 1, 0); l.Font = Enum.Font.Gotham; l.Text = txt
-    l.TextColor3 = C.Txt; l.TextSize = 8; l.TextXAlignment = Enum.TextXAlignment.Left
-    l.TextTruncate = Enum.TextTruncate.AtEnd
+local function CreateToggle(parent, text, callback, layoutOrder)
+    local frame = Instance.new("Frame")
+    frame.Parent = parent
+    frame.BackgroundColor3 = Colors.ToggleOff
+    frame.BackgroundTransparency = 0.4
+    frame.Size = UDim2.new(0.96, 0, 0, 20)
+    frame.BorderSizePixel = 0
+    frame.LayoutOrder = layoutOrder or 0
+    Instance.new("UICorner", frame).CornerRadius = UDim.new(0, 6)
 
-    local sw = Instance.new("Frame", h)
-    sw.BackgroundColor3 = Color3.fromRGB(55, 55, 60); sw.BackgroundTransparency = 0.3
-    sw.Size = UDim2.new(0, 24, 0, 11); sw.Position = UDim2.new(1, -28, 0.5, -5)
-    sw.BorderSizePixel = 0
-    Instance.new("UICorner", sw).CornerRadius = UDim.new(1, 0)
+    local label = Instance.new("TextLabel", frame)
+    label.BackgroundTransparency = 1
+    label.Position = UDim2.new(0, 6, 0, 0)
+    label.Size = UDim2.new(1, -36, 1, 0)
+    label.Font = Enum.Font.Gotham
+    label.Text = text
+    label.TextColor3 = Colors.TextWhite
+    label.TextSize = 8
+    label.TextXAlignment = Enum.TextXAlignment.Left
+    label.TextTruncate = Enum.TextTruncate.AtEnd
 
-    local dt = Instance.new("Frame", sw)
-    dt.BackgroundColor3 = C.Dim; dt.Size = UDim2.new(0, 9, 0, 9)
-    dt.Position = UDim2.new(0, 1, 0.5, -4); dt.BorderSizePixel = 0
-    Instance.new("UICorner", dt).CornerRadius = UDim.new(1, 0)
+    local switchTrack = Instance.new("Frame", frame)
+    switchTrack.BackgroundColor3 = Color3.fromRGB(55, 55, 60)
+    switchTrack.BackgroundTransparency = 0.3
+    switchTrack.Size = UDim2.new(0, 24, 0, 11)
+    switchTrack.Position = UDim2.new(1, -28, 0.5, -5)
+    switchTrack.BorderSizePixel = 0
+    Instance.new("UICorner", switchTrack).CornerRadius = UDim.new(1, 0)
 
-    local btn = Instance.new("TextButton", h)
-    btn.BackgroundTransparency = 1; btn.Size = UDim2.new(1, 0, 1, 0); btn.Text = ""; btn.ZIndex = 3
+    local switchDot = Instance.new("Frame", switchTrack)
+    switchDot.BackgroundColor3 = Colors.TextDim
+    switchDot.Size = UDim2.new(0, 9, 0, 9)
+    switchDot.Position = UDim2.new(0, 1, 0.5, -4)
+    switchDot.BorderSizePixel = 0
+    Instance.new("UICorner", switchDot).CornerRadius = UDim.new(1, 0)
 
-    local on = false
-    btn.MouseButton1Click:Connect(function()
-        on = not on
-        if on then
-            tw(sw, {BackgroundColor3 = C.Acc, BackgroundTransparency = 0.3})
-            tw(dt, {Position = UDim2.new(1, -10, 0.5, -4), BackgroundColor3 = C.Acc})
-            tw(h, {BackgroundTransparency = 0.25})
+    local hitButton = Instance.new("TextButton", frame)
+    hitButton.BackgroundTransparency = 1
+    hitButton.Size = UDim2.new(1, 0, 1, 0)
+    hitButton.Text = ""
+    hitButton.ZIndex = 3
+
+    local isOn = false
+    hitButton.MouseButton1Click:Connect(function()
+        isOn = not isOn
+        if isOn then
+            tweenTo(switchTrack, {BackgroundColor3 = Colors.Accent, BackgroundTransparency = 0.3})
+            tweenTo(switchDot, {Position = UDim2.new(1, -10, 0.5, -4), BackgroundColor3 = Colors.Accent})
+            tweenTo(frame, {BackgroundTransparency = 0.25})
         else
-            tw(sw, {BackgroundColor3 = Color3.fromRGB(55, 55, 60), BackgroundTransparency = 0.3})
-            tw(dt, {Position = UDim2.new(0, 1, 0.5, -4), BackgroundColor3 = C.Dim})
-            tw(h, {BackgroundTransparency = 0.4})
+            tweenTo(switchTrack, {BackgroundColor3 = Color3.fromRGB(55, 55, 60), BackgroundTransparency = 0.3})
+            tweenTo(switchDot, {Position = UDim2.new(0, 1, 0.5, -4), BackgroundColor3 = Colors.TextDim})
+            tweenTo(frame, {BackgroundTransparency = 0.4})
         end
-        pcall(cb, on)
+        pcall(callback, isOn)
     end)
+
+    return frame
 end
 
-local function Btn(par, txt, cb, ord)
-    local b = Instance.new("TextButton")
-    b.Parent = par; b.BackgroundColor3 = C.Hover; b.BackgroundTransparency = 0.4
-    b.Size = UDim2.new(0.96, 0, 0, 20); b.Font = Enum.Font.GothamMedium; b.Text = txt
-    b.TextColor3 = C.Txt; b.TextSize = 8; b.AutoButtonColor = false
-    b.BorderSizePixel = 0; b.LayoutOrder = ord or 0
-    Instance.new("UICorner", b).CornerRadius = UDim.new(0, 6)
-    b.MouseButton1Click:Connect(function()
-        tw(b, {BackgroundColor3 = C.Acc, BackgroundTransparency = 0})
+local function CreateButton(parent, text, callback, layoutOrder)
+    local button = Instance.new("TextButton")
+    button.Parent = parent
+    button.BackgroundColor3 = Colors.CardHover
+    button.BackgroundTransparency = 0.4
+    button.Size = UDim2.new(0.96, 0, 0, 20)
+    button.Font = Enum.Font.GothamMedium
+    button.Text = text
+    button.TextColor3 = Colors.TextWhite
+    button.TextSize = 8
+    button.AutoButtonColor = false
+    button.BorderSizePixel = 0
+    button.LayoutOrder = layoutOrder or 0
+    Instance.new("UICorner", button).CornerRadius = UDim.new(0, 6)
+
+    button.MouseButton1Click:Connect(function()
+        tweenTo(button, {BackgroundColor3 = Colors.Accent, BackgroundTransparency = 0})
         task.wait(0.1)
-        tw(b, {BackgroundColor3 = C.Hover, BackgroundTransparency = 0.4})
-        pcall(cb)
+        tweenTo(button, {BackgroundColor3 = Colors.CardHover, BackgroundTransparency = 0.4})
+        pcall(callback)
     end)
+
+    return button
 end
 
-local function Sep(par, ord)
-    local s = Instance.new("Frame", par)
-    s.BackgroundColor3 = C.Sep; s.BackgroundTransparency = 0.6
-    s.Size = UDim2.new(0.88, 0, 0, 1); s.BorderSizePixel = 0; s.LayoutOrder = ord or 0
+local function CreateSeparator(parent, layoutOrder)
+    local sep = Instance.new("Frame", parent)
+    sep.BackgroundColor3 = Colors.Separator
+    sep.BackgroundTransparency = 0.6
+    sep.Size = UDim2.new(0.88, 0, 0, 1)
+    sep.BorderSizePixel = 0
+    sep.LayoutOrder = layoutOrder or 0
 end
 
-local function Lbl(par, txt, ord)
-    local l = Instance.new("TextLabel", par)
-    l.BackgroundColor3 = C.Bg; l.BackgroundTransparency = 0.55
-    l.Size = UDim2.new(0.96, 0, 0, 16); l.Font = Enum.Font.Gotham; l.Text = "  " .. txt
-    l.TextColor3 = C.Dim; l.TextSize = 7; l.TextXAlignment = Enum.TextXAlignment.Left
-    l.BorderSizePixel = 0; l.LayoutOrder = ord or 0
-    Instance.new("UICorner", l).CornerRadius = UDim.new(0, 5)
-    return l
+local function CreateInfoLabel(parent, text, layoutOrder)
+    local label = Instance.new("TextLabel", parent)
+    label.BackgroundColor3 = Colors.Background
+    label.BackgroundTransparency = 0.55
+    label.Size = UDim2.new(0.96, 0, 0, 16)
+    label.Font = Enum.Font.Gotham
+    label.Text = "  " .. text
+    label.TextColor3 = Colors.TextDim
+    label.TextSize = 7
+    label.TextXAlignment = Enum.TextXAlignment.Left
+    label.BorderSizePixel = 0
+    label.LayoutOrder = layoutOrder or 0
+    Instance.new("UICorner", label).CornerRadius = UDim.new(0, 5)
+    return label
 end
 
-local function Stepper(par, txt, lo, hi, step, def, cb, ord)
-    local h = Instance.new("Frame", par)
-    h.BackgroundColor3 = C.Off; h.BackgroundTransparency = 0.4
-    h.Size = UDim2.new(0.96, 0, 0, 20); h.BorderSizePixel = 0; h.LayoutOrder = ord or 0
-    Instance.new("UICorner", h).CornerRadius = UDim.new(0, 6)
+local function CreateStepper(parent, text, minVal, maxVal, step, default, callback, layoutOrder)
+    local frame = Instance.new("Frame", parent)
+    frame.BackgroundColor3 = Colors.ToggleOff
+    frame.BackgroundTransparency = 0.4
+    frame.Size = UDim2.new(0.96, 0, 0, 20)
+    frame.BorderSizePixel = 0
+    frame.LayoutOrder = layoutOrder or 0
+    Instance.new("UICorner", frame).CornerRadius = UDim.new(0, 6)
 
-    local l = Instance.new("TextLabel", h)
-    l.BackgroundTransparency = 1; l.Position = UDim2.new(0, 6, 0, 0)
-    l.Size = UDim2.new(0.5, 0, 1, 0); l.Font = Enum.Font.Gotham; l.Text = txt
-    l.TextColor3 = C.Txt; l.TextSize = 8; l.TextXAlignment = Enum.TextXAlignment.Left
+    local label = Instance.new("TextLabel", frame)
+    label.BackgroundTransparency = 1
+    label.Position = UDim2.new(0, 6, 0, 0)
+    label.Size = UDim2.new(0.5, 0, 1, 0)
+    label.Font = Enum.Font.Gotham
+    label.Text = text
+    label.TextColor3 = Colors.TextWhite
+    label.TextSize = 8
+    label.TextXAlignment = Enum.TextXAlignment.Left
 
-    local val = def
-    local vl = Instance.new("TextLabel", h)
-    vl.BackgroundTransparency = 1; vl.Position = UDim2.new(0.6, 0, 0, 0)
-    vl.Size = UDim2.new(0.14, 0, 1, 0); vl.Font = Enum.Font.GothamMedium
-    vl.Text = tostring(val); vl.TextColor3 = C.Acc; vl.TextSize = 8
+    local currentValue = default
 
-    local function mkSB(t, xp, d)
-        local s = Instance.new("TextButton", h)
-        s.BackgroundColor3 = C.Hover; s.BackgroundTransparency = 0.3
-        s.Size = UDim2.new(0, 16, 0, 13); s.Position = UDim2.new(xp, 0, 0.5, -6)
-        s.Font = Enum.Font.GothamBold; s.Text = t; s.TextColor3 = C.Txt; s.TextSize = 11
-        s.AutoButtonColor = false; s.BorderSizePixel = 0; s.ZIndex = 3
-        Instance.new("UICorner", s).CornerRadius = UDim.new(0, 4)
-        s.MouseButton1Click:Connect(function()
-            val = math.clamp(val + d, lo, hi)
-            vl.Text = tostring(val)
-            pcall(cb, val)
-            tw(s, {BackgroundColor3 = C.Acc})
+    local valueLabel = Instance.new("TextLabel", frame)
+    valueLabel.BackgroundTransparency = 1
+    valueLabel.Position = UDim2.new(0.6, 0, 0, 0)
+    valueLabel.Size = UDim2.new(0.14, 0, 1, 0)
+    valueLabel.Font = Enum.Font.GothamMedium
+    valueLabel.Text = tostring(currentValue)
+    valueLabel.TextColor3 = Colors.Accent
+    valueLabel.TextSize = 8
+
+    local function makeStepButton(buttonText, xPosition, delta)
+        local stepBtn = Instance.new("TextButton", frame)
+        stepBtn.BackgroundColor3 = Colors.CardHover
+        stepBtn.BackgroundTransparency = 0.3
+        stepBtn.Size = UDim2.new(0, 16, 0, 13)
+        stepBtn.Position = UDim2.new(xPosition, 0, 0.5, -6)
+        stepBtn.Font = Enum.Font.GothamBold
+        stepBtn.Text = buttonText
+        stepBtn.TextColor3 = Colors.TextWhite
+        stepBtn.TextSize = 11
+        stepBtn.AutoButtonColor = false
+        stepBtn.BorderSizePixel = 0
+        stepBtn.ZIndex = 3
+        Instance.new("UICorner", stepBtn).CornerRadius = UDim.new(0, 4)
+
+        stepBtn.MouseButton1Click:Connect(function()
+            currentValue = math.clamp(currentValue + delta, minVal, maxVal)
+            valueLabel.Text = tostring(currentValue)
+            pcall(callback, currentValue)
+            tweenTo(stepBtn, {BackgroundColor3 = Colors.Accent})
             task.wait(0.06)
-            tw(s, {BackgroundColor3 = C.Hover})
+            tweenTo(stepBtn, {BackgroundColor3 = Colors.CardHover})
         end)
     end
-    mkSB("–", 0.52, -step)
-    mkSB("+", 0.82, step)
+
+    makeStepButton("–", 0.52, -step)
+    makeStepButton("+", 0.82, step)
 end
 
+-- Disabled overlay for sub-functions
+local function CreateDisabledOverlay(parentFrame)
+    local overlay = Instance.new("Frame", parentFrame)
+    overlay.Name = "DisabledOverlay"
+    overlay.BackgroundColor3 = Colors.DisabledOverlay
+    overlay.BackgroundTransparency = 0.35
+    overlay.Size = UDim2.new(1, 0, 1, 0)
+    overlay.ZIndex = 8
+    overlay.Visible = true
+    Instance.new("UICorner", overlay).CornerRadius = UDim.new(0, 6)
+
+    local disabledLabel = Instance.new("TextLabel", overlay)
+    disabledLabel.BackgroundTransparency = 1
+    disabledLabel.Size = UDim2.new(1, 0, 1, 0)
+    disabledLabel.Font = Enum.Font.GothamBold
+    disabledLabel.Text = "DISABLED"
+    disabledLabel.TextColor3 = Colors.Red
+    disabledLabel.TextSize = 7
+    disabledLabel.TextTransparency = 0.3
+    disabledLabel.ZIndex = 9
+
+    return overlay
+end
+
+
 -- ============================================================
---                         LOGIC
+--                    FEATURE LOGIC
 -- ============================================================
 
-local pT = tabFrames["Player"]
-local vT = tabFrames["Visuals"]
-local eT = tabFrames["Exploits"]
+local playerTab = tabFrames["Player"]
+local visualsTab = tabFrames["Visuals"]
+local exploitsTab = tabFrames["Exploits"]
 
--- ==================== PLAYER ====================
+-- ===================== PLAYER TAB =====================
 
-local stamOn = false
-Toggle(pT, "⚡ Inf Stamina", function(s)
-    stamOn = s
-    if s then task.spawn(function()
-        while stamOn do
-            pcall(function()
-                for _, v in pairs(getgc(true)) do
-                    if type(v) == "table" and rawget(v, "STAMINA_REGEN") then
-                        v.STAMINA_REGEN = 100; v.JUMP_STAMINA = 0
-                        v.JUMP_COOLDOWN = 0; v.STAMINA_TAKE = 0; v.stamina = 100
+-- 1. Infinite Stamina (periodic getgc re-scan, survives respawn)
+local staminaEnabled = false
+CreateToggle(playerTab, "⚡ Inf Stamina", function(state)
+    staminaEnabled = state
+    if state then
+        task.spawn(function()
+            while staminaEnabled do
+                pcall(function()
+                    for _, value in pairs(getgc(true)) do
+                        if type(value) == "table" and rawget(value, "STAMINA_REGEN") then
+                            value.STAMINA_REGEN = 100
+                            value.JUMP_STAMINA = 0
+                            value.JUMP_COOLDOWN = 0
+                            value.STAMINA_TAKE = 0
+                            value.stamina = 100
+                        end
                     end
-                end
-            end)
-            task.wait(3)
-        end
-    end) end
+                end)
+                task.wait(3)
+            end
+        end)
+    end
 end, 1)
 
-local nvgOn = false
-Toggle(pT, "🔋 Inf Night Vision", function(s)
-    nvgOn = s
-    if s then task.spawn(function()
-        while nvgOn do
-            pcall(function()
-                for _, v in pairs(getgc(true)) do
-                    if type(v) == "table" and rawget(v, "NVG_TAKE") then
-                        v.NVG_TAKE = 0; v.NVG_REGEN = 100
+-- 2. Infinite Night Vision
+local nightVisionEnabled = false
+CreateToggle(playerTab, "🔋 Inf Night Vision", function(state)
+    nightVisionEnabled = state
+    if state then
+        task.spawn(function()
+            while nightVisionEnabled do
+                pcall(function()
+                    for _, value in pairs(getgc(true)) do
+                        if type(value) == "table" and rawget(value, "NVG_TAKE") then
+                            value.NVG_TAKE = 0
+                            value.NVG_REGEN = 100
+                        end
                     end
-                end
-            end)
-            task.wait(3)
-        end
-    end) end
+                end)
+                task.wait(3)
+            end
+        end)
+    end
 end, 2)
 
-local noFall = false
-Toggle(pT, "🛡️ No Fall Damage", function(s) noFall = s end, 3)
+-- 3. No Fall Damage (metatable hook — identical to working v3)
+local noFallDamage = false
+CreateToggle(playerTab, "🛡️ No Fall Damage", function(state)
+    noFallDamage = state
+end, 3)
 
-if not _G._SH1Hook then
-    _G._SH1Hook = true
-    local mt = getrawmetatable(game)
-    local old = mt.__namecall
-    setreadonly(mt, false)
-    mt.__namecall = function(self, ...)
-        if noFall == true then
+-- ============================================================
+--    ANTI-CHEAT BYPASS: METATABLE HOOKS (safe for mobile)
+-- ============================================================
+-- Uses local guard (not _G) to avoid detection via getgc/_G scan
+local _hookInstalled = false
+if not _hookInstalled then
+    _hookInstalled = true
+    local metatable = getrawmetatable(game)
+    local originalNamecall = metatable.__namecall
+    local originalIndex = metatable.__index
+    setreadonly(metatable, false)
+
+    -- ========== __index HOOK ==========
+    -- Spoofs property reads so anti-cheat sees default values
+    metatable.__index = function(self, key)
+        -- 🚫 Anti-Kick: return dummy function when game tries Player:Kick()
+        if key == "Kick" then
+            if self == LocalPlayer then
+                return function() end -- swallow the kick
+            end
+        -- 🏃 WalkSpeed spoof: anti-cheat reads 16 (default)
+        elseif key == "WalkSpeed" then
+            if speedEnabled and typeof(self) == "Instance" then
+                if self:IsA("Humanoid") then return 16 end
+            end
+        -- 🔭 FOV spoof: anti-cheat reads 70 (default)
+        elseif key == "FieldOfView" then
+            if fovEnabled and typeof(self) == "Instance" then
+                if self:IsA("Camera") then return 70 end
+            end
+        -- 🏃 JumpPower spoof
+        elseif key == "JumpPower" then
+            if speedEnabled and typeof(self) == "Instance" then
+                if self:IsA("Humanoid") then return 50 end
+            end
+        -- 📡 Velocity spoof: hide real velocity from server checks
+        elseif key == "Velocity" then
+            if antiDetectEnabled and typeof(self) == "Instance" then
+                if self:IsA("BasePart") then
+                    return Vector3.new(0, 0, 0)
+                end
+            end
+        end
+        return originalIndex(self, key)
+    end
+
+    -- ========== __namecall HOOK ==========
+    -- Blocks fall damage + silently drops anti-cheat reporting remotes
+    metatable.__namecall = function(self, ...)
+        -- 🛡️ No Fall Damage (identical to working v3)
+        if noFallDamage == true then
             local args = {...}
             if tostring(self) == "FD_Event" then
-                args[1] = 0; args[2] = 0
+                args[1] = 0
+                args[2] = 0
                 return self.FireServer(self, unpack(args))
             end
         end
-        return old(self, ...)
+
+        -- 📡 Anti-cheat remote filter: silently block reporting remotes
+        if typeof(self) == "Instance" and self:IsA("RemoteEvent") then
+            local remoteName = tostring(self):lower()
+            if remoteName:match("anticheat")
+            or remoteName:match("ac_report")
+            or remoteName:match("cheatdetect")
+            or remoteName:match("violation")
+            or remoteName:match("exploit_log") then
+                return nil -- silently swallow
+            end
+        end
+
+        return originalNamecall(self, ...)
     end
-    setreadonly(mt, true)
+
+    setreadonly(metatable, true)
 end
 
-Sep(pT, 4)
+CreateSeparator(playerTab, 4)
 
-local spdOn, spdVal = false, 16
-Stepper(pT, "🏃 Speed", 10, 40, 2, 16, function(v) spdVal = v end, 5)
-Toggle(pT, "🏃 Enable Speed", function(s) spdOn = s end, 6)
+-- 4. WalkSpeed
+local speedEnabled = false
+local speedValue = 16
+CreateStepper(playerTab, "🏃 Speed", 10, 40, 2, 16, function(value)
+    speedValue = value
+end, 5)
+CreateToggle(playerTab, "🏃 Enable Speed", function(state)
+    speedEnabled = state
+end, 6)
 
-local fovOn, fovVal = false, 70
-Stepper(pT, "🔭 FOV", 50, 120, 5, 70, function(v) fovVal = v end, 7)
-Toggle(pT, "🔭 Enable FOV", function(s)
-    fovOn = s
-    if not s then pcall(function() WS.CurrentCamera.FieldOfView = 70 end) end
+-- 5. FOV
+local fovEnabled = false
+local fovValue = 70
+CreateStepper(playerTab, "🔭 FOV", 50, 120, 5, 70, function(value)
+    fovValue = value
+end, 7)
+CreateToggle(playerTab, "🔭 Enable FOV", function(state)
+    fovEnabled = state
+    if not state then
+        pcall(function() Workspace.CurrentCamera.FieldOfView = 70 end)
+    end
 end, 8)
 
 
--- ==================== VISUALS ====================
+-- ===================== VISUALS TAB =====================
 
-local espP, espR, espS, espL = {}, {}, {}, {}
+-- ESP tracked per type
+local espPlayerList = {}
+local espRakeList = {}
+local espScrapList = {}
+local espLootList = {}
 
-local function clearESP(t)
-    for i = #t, 1, -1 do pcall(function() if t[i] and t[i].Parent then t[i]:Destroy() end end); table.remove(t, i) end
+local function clearESPList(list)
+    for i = #list, 1, -1 do
+        pcall(function() if list[i] and list[i].Parent then list[i]:Destroy() end end)
+        table.remove(list, i)
+    end
 end
 
-local function mkHL(par, col, nm, t)
-    if not par or par:FindFirstChild(nm) then return end
-    local h = Instance.new("Highlight")
-    h.Name = nm; h.FillColor = col; h.OutlineColor = Color3.new(1, 1, 1)
-    h.FillTransparency = 0.5; h.DepthMode = Enum.HighlightDepthMode.AlwaysOnTop
-    h.Parent = par
-    table.insert(t, h); table.insert(allHL, h)
+local function createHighlight(parent, color, name, list)
+    if not parent or parent:FindFirstChild(name) then return end
+    local highlight = Instance.new("Highlight")
+    highlight.Name = name
+    highlight.FillColor = color
+    highlight.OutlineColor = Color3.new(1, 1, 1)
+    highlight.FillTransparency = 0.5
+    highlight.DepthMode = Enum.HighlightDepthMode.AlwaysOnTop
+    highlight.Parent = parent
+    table.insert(list, highlight)
+    table.insert(allHighlights, highlight)
 end
 
-local function mkBB(par, txt, col, nm, t)
-    if not par then return end
-    local ex = par:FindFirstChild(nm)
-    if ex then
-        local tl = ex:FindFirstChild("T")
-        if tl then tl.Text = txt end
+local function createBillboard(parent, text, color, name, list)
+    if not parent then return end
+    local existing = parent:FindFirstChild(name)
+    if existing then
+        local textLabel = existing:FindFirstChild("T")
+        if textLabel then textLabel.Text = text end
         return
     end
-    local bb = Instance.new("BillboardGui")
-    bb.Name = nm; bb.Size = UDim2.new(0, 140, 0, 20)
-    bb.StudsOffset = Vector3.new(0, 3, 0); bb.AlwaysOnTop = true
-    bb.MaxDistance = 2000; bb.Parent = par
-    local tl = Instance.new("TextLabel", bb)
-    tl.Name = "T"; tl.Size = UDim2.new(1, 0, 1, 0); tl.BackgroundTransparency = 1
-    tl.TextColor3 = col; tl.Text = txt; tl.TextSize = 11
-    tl.Font = Enum.Font.GothamBold
-    tl.TextStrokeTransparency = 0.5; tl.TextStrokeColor3 = Color3.fromRGB(0, 0, 0)
-    table.insert(t, bb); table.insert(allHL, bb)
+    local billboard = Instance.new("BillboardGui")
+    billboard.Name = name
+    billboard.Size = UDim2.new(0, 140, 0, 20)
+    billboard.StudsOffset = Vector3.new(0, 3, 0)
+    billboard.AlwaysOnTop = true
+    billboard.MaxDistance = 2000
+    billboard.Parent = parent
+    local textLabel = Instance.new("TextLabel", billboard)
+    textLabel.Name = "T"
+    textLabel.Size = UDim2.new(1, 0, 1, 0)
+    textLabel.BackgroundTransparency = 1
+    textLabel.TextColor3 = color
+    textLabel.Text = text
+    textLabel.TextSize = 11
+    textLabel.Font = Enum.Font.GothamBold
+    textLabel.TextStrokeTransparency = 0.5
+    textLabel.TextStrokeColor3 = Color3.fromRGB(0, 0, 0)
+    table.insert(list, billboard)
+    table.insert(allHighlights, billboard)
 end
 
-local pEsp = false
-Toggle(vT, "👤 Player ESP (blue)", function(s) pEsp = s; if not s then clearESP(espP) end end, 1)
-local rEsp = false
-Toggle(vT, "👹 Rake ESP (red)", function(s) rEsp = s; if not s then clearESP(espR) end end, 2)
-local sEsp = false
-Toggle(vT, "🔧 Scrap ESP (brown)", function(s) sEsp = s; if not s then clearESP(espS) end end, 3)
-local lEsp = false
-Toggle(vT, "🔫 Loot ESP (yellow)", function(s) lEsp = s; if not s then clearESP(espL) end end, 4)
+-- ESP toggles
+local playerESPEnabled = false
+CreateToggle(visualsTab, "👤 Player ESP (blue)", function(state)
+    playerESPEnabled = state
+    if not state then clearESPList(espPlayerList) end
+end, 1)
+
+local rakeESPEnabled = false
+CreateToggle(visualsTab, "👹 Rake ESP (red)", function(state)
+    rakeESPEnabled = state
+    if not state then clearESPList(espRakeList) end
+end, 2)
+
+local scrapESPEnabled = false
+CreateToggle(visualsTab, "🔧 Scrap ESP (brown)", function(state)
+    scrapESPEnabled = state
+    if not state then clearESPList(espScrapList) end
+end, 3)
+
+local lootESPEnabled = false
+CreateToggle(visualsTab, "🔫 Loot ESP (yellow)", function(state)
+    lootESPEnabled = state
+    if not state then clearESPList(espLootList) end
+end, 4)
 
 -- Location ESP
-local locOn = false
-local locParts = {}
-local LOCS = {
+local locationESPEnabled = false
+local locationParts = {}
+local LOCATIONS = {
     {"Safe House",    Vector3.new(-363.5, 20, 70.3)},
     {"Shop",          Vector3.new(-25.2, 20, -258.4)},
     {"Power Station", Vector3.new(-281.7, 24, -212.7)},
     {"Base Camp",     Vector3.new(-70.7, 20, 209.0)},
 }
 
-Toggle(vT, "📍 Location Names", function(s)
-    locOn = s
-    if s then
-        for _, loc in ipairs(LOCS) do
-            local p = Instance.new("Part")
-            p.Anchored = true; p.Transparency = 1; p.CanCollide = false
-            p.Size = Vector3.new(0.1, 0.1, 0.1); p.Position = loc[2]; p.Parent = WS
-            local bb = Instance.new("BillboardGui", p)
-            bb.Size = UDim2.new(0, 110, 0, 18); bb.StudsOffset = Vector3.new(0, 6, 0)
-            bb.AlwaysOnTop = true; bb.MaxDistance = 2000
-            local tl = Instance.new("TextLabel", bb)
-            tl.Size = UDim2.new(1, 0, 1, 0); tl.BackgroundTransparency = 1
-            tl.TextColor3 = Color3.fromRGB(255, 160, 0); tl.Text = "📍 " .. loc[1]
-            tl.TextSize = 11; tl.Font = Enum.Font.GothamBold
-            tl.TextStrokeTransparency = 0.4; tl.TextStrokeColor3 = Color3.fromRGB(0, 0, 0)
-            table.insert(locParts, p); table.insert(allHL, p)
+CreateToggle(visualsTab, "📍 Location Names", function(state)
+    locationESPEnabled = state
+    if state then
+        for _, location in ipairs(LOCATIONS) do
+            local part = Instance.new("Part")
+            part.Anchored = true
+            part.Transparency = 1
+            part.CanCollide = false
+            part.Size = Vector3.new(0.1, 0.1, 0.1)
+            part.Position = location[2]
+            part.Parent = Workspace
+
+            local billboard = Instance.new("BillboardGui", part)
+            billboard.Size = UDim2.new(0, 110, 0, 18)
+            billboard.StudsOffset = Vector3.new(0, 6, 0)
+            billboard.AlwaysOnTop = true
+            billboard.MaxDistance = 2000
+
+            local textLabel = Instance.new("TextLabel", billboard)
+            textLabel.Size = UDim2.new(1, 0, 1, 0)
+            textLabel.BackgroundTransparency = 1
+            textLabel.TextColor3 = Color3.fromRGB(255, 160, 0)
+            textLabel.Text = "📍 " .. location[1]
+            textLabel.TextSize = 11
+            textLabel.Font = Enum.Font.GothamBold
+            textLabel.TextStrokeTransparency = 0.4
+            textLabel.TextStrokeColor3 = Color3.fromRGB(0, 0, 0)
+
+            table.insert(locationParts, part)
+            table.insert(allHighlights, part)
         end
     else
-        for _, m in pairs(locParts) do pcall(function() m:Destroy() end) end
-        locParts = {}
+        for _, marker in pairs(locationParts) do
+            pcall(function() marker:Destroy() end)
+        end
+        locationParts = {}
     end
 end, 5)
 
-Sep(vT, 6)
+CreateSeparator(visualsTab, 6)
 
--- Day + NoFog (PERSISTENT — reactive override)
-local dayOn = false
-Toggle(vT, "☀️ Day + NoFog", function(s)
-    dayOn = s
-    if s then
+-- Day + NoFog (persistent — every frame + reactive signals)
+local dayModeEnabled = false
+CreateToggle(visualsTab, "☀️ Day + NoFog", function(state)
+    dayModeEnabled = state
+    if state then
         pcall(function()
-            Lighting.ClockTime = 14; Lighting.FogEnd = 9e9; Lighting.GlobalShadows = false
-            -- Override source values so game applies our values
+            Lighting.ClockTime = 14
+            Lighting.FogEnd = 9e9
+            Lighting.GlobalShadows = false
+            -- Override source values
             pcall(function()
-                local clp = RS:FindFirstChild("CurrentLightingProperties")
-                if clp then
-                    if clp:FindFirstChild("FogEnd") then clp.FogEnd.Value = 9e9 end
-                    if clp:FindFirstChild("ClockTime") then clp.ClockTime.Value = 14 end
+                local props = ReplicatedStorage:FindFirstChild("CurrentLightingProperties")
+                if props then
+                    if props:FindFirstChild("FogEnd") then props.FogEnd.Value = 9e9 end
+                    if props:FindFirstChild("ClockTime") then props.ClockTime.Value = 14 end
                 end
             end)
-            -- Disable atmosphere effects
+            -- Disable effects
             for _, child in pairs(Lighting:GetChildren()) do
-                if child:IsA("Atmosphere") then child.Density = 0; child.Offset = 0 end
-                if child:IsA("BlurEffect") then child.Enabled = false end
-                if child:IsA("ColorCorrectionEffect") then child.Brightness = 0; child.Contrast = 0 end
+                pcall(function()
+                    if child:IsA("Atmosphere") then child.Density = 0 end
+                    if child:IsA("BlurEffect") then child.Enabled = false end
+                    if child:IsA("ColorCorrectionEffect") then child.Brightness = 0 end
+                end)
             end
         end)
     else
         pcall(function()
-            Lighting.ClockTime = 0; Lighting.FogEnd = 200; Lighting.GlobalShadows = true
+            Lighting.ClockTime = 0
+            Lighting.FogEnd = 200
+            Lighting.GlobalShadows = true
             pcall(function()
-                local clp = RS:FindFirstChild("CurrentLightingProperties")
-                if clp and clp:FindFirstChild("FogEnd") then clp.FogEnd.Value = 75 end
+                local props = ReplicatedStorage:FindFirstChild("CurrentLightingProperties")
+                if props and props:FindFirstChild("FogEnd") then props.FogEnd.Value = 75 end
             end)
         end)
     end
 end, 7)
 
--- 3rd Person (PERSISTENT — reactive override)
-local tpOn = false
-Toggle(vT, "📷 3rd Person", function(s)
-    tpOn = s
-    if s then
-        -- ragdoll trick to kick out initially
+-- 3rd Person (persistent — every frame + reactive signals)
+local thirdPersonEnabled = false
+CreateToggle(visualsTab, "📷 3rd Person", function(state)
+    thirdPersonEnabled = state
+    if state then
         pcall(function()
-            local ch = LP.Character
-            if ch and ch:FindFirstChild("RagdollTime") then
-                ch.RagdollTime.RagdollSwitch.Value = true
+            local character = LocalPlayer.Character
+            if character and character:FindFirstChild("RagdollTime") then
+                character.RagdollTime.RagdollSwitch.Value = true
                 task.wait()
-                ch.RagdollTime.RagdollSwitch.Value = false
+                character.RagdollTime.RagdollSwitch.Value = false
             end
         end)
         pcall(function()
-            LP.CameraMode = Enum.CameraMode.Classic
-            LP.CameraMaxZoomDistance = 100
-            LP.CameraMinZoomDistance = 0.5
+            LocalPlayer.CameraMode = Enum.CameraMode.Classic
+            LocalPlayer.CameraMaxZoomDistance = 100
+            LocalPlayer.CameraMinZoomDistance = 0.5
         end)
     else
-        pcall(function() LP.CameraMode = Enum.CameraMode.LockFirstPerson end)
+        pcall(function()
+            LocalPlayer.CameraMode = Enum.CameraMode.LockFirstPerson
+        end)
     end
 end, 8)
 
 
--- ==================== EXPLOITS ====================
+-- ===================== EXPLOITS TAB =====================
 
-local kaOn = false
-Toggle(eT, "⚔️ KillAura (200m)", function(s) kaOn = s end, 1)
+-- 1. KillAura
+local killAuraEnabled = false
+CreateToggle(exploitsTab, "⚔️ KillAura (200m)", function(state)
+    killAuraEnabled = state
+end, 1)
 
 task.spawn(function()
     while task.wait(0.1) do
-        if kaOn then pcall(function()
-            local rake = WS:FindFirstChild("Rake") or WS:FindFirstChild("Monster")
-            local ch = LP.Character
-            if rake and ch and ch:FindFirstChild("StunStick") and ch:FindFirstChild("HumanoidRootPart") then
-                local rh = rake:FindFirstChild("HumanoidRootPart")
-                if rh and (rh.Position - ch.HumanoidRootPart.Position).Magnitude < 200 then
-                    ch.StunStick.Event:FireServer("S")
-                    task.wait(0.05)
-                    ch.StunStick.Event:FireServer("H", rh)
+        if killAuraEnabled then
+            pcall(function()
+                local rake = Workspace:FindFirstChild("Rake") or Workspace:FindFirstChild("Monster")
+                local character = LocalPlayer.Character
+                if rake and character and character:FindFirstChild("StunStick") and character:FindFirstChild("HumanoidRootPart") then
+                    local rakeHRP = rake:FindFirstChild("HumanoidRootPart")
+                    if rakeHRP and (rakeHRP.Position - character.HumanoidRootPart.Position).Magnitude < 200 then
+                        character.StunStick.Event:FireServer("S")
+                        task.wait(0.05)
+                        character.StunStick.Event:FireServer("H", rakeHRP)
+                    end
                 end
-            end
-        end) end
+            end)
+        end
     end
 end)
 
-local ioOn = false
-Toggle(eT, "📦 Insta-Open Boxes", function(s) ioOn = s end, 2)
+-- 2. AntiDetect (blocks server position corrections after wall removal)
+local antiDetectEnabled = false
+local lastSafePosition = nil
+local antiDetectStartTime = 0
 
-Sep(eT, 3)
+CreateToggle(exploitsTab, "🔒 AntiDetect", function(state)
+    antiDetectEnabled = state
+    if state then
+        antiDetectStartTime = tick()
+        pcall(function()
+            local hrp = LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("HumanoidRootPart")
+            if hrp then lastSafePosition = hrp.Position end
+        end)
+    else
+        lastSafePosition = nil
+    end
+end, 2)
 
-Btn(eT, "🧲 Bring Scrap", function()
+CreateSeparator(exploitsTab, 3)
+
+-- 3. Insta-Open Boxes (persistent toggle)
+local instaOpenEnabled = false
+local multiLootOverlay = nil
+
+CreateToggle(exploitsTab, "📦 Insta-Open Boxes", function(state)
+    instaOpenEnabled = state
+    -- Show/hide DISABLED overlay on sub-function
+    if multiLootOverlay then
+        multiLootOverlay.Visible = not state
+    end
+end, 4)
+
+-- 4. Multi-Loot (sub-function — DISABLED when InstaOpen is off)
+local multiLootEnabled = false
+local multiLootFrame = CreateToggle(exploitsTab, "📦 Multi-Loot (grab all)", function(state)
+    if not instaOpenEnabled then return end
+    multiLootEnabled = state
+end, 5)
+
+multiLootOverlay = CreateDisabledOverlay(multiLootFrame)
+
+CreateSeparator(exploitsTab, 6)
+
+-- 5. Bring Scrap
+CreateButton(exploitsTab, "🧲 Bring Scrap", function()
     pcall(function()
-        local ch = LP.Character
-        if ch then
-            for _, v in pairs(WS.Filter.ScrapSpawns:GetDescendants()) do
-                if v.Name:lower() == "scrap" then v:PivotTo(ch:GetPivot()) end
+        local character = LocalPlayer.Character
+        if character then
+            for _, item in pairs(Workspace.Filter.ScrapSpawns:GetDescendants()) do
+                if item.Name:lower() == "scrap" then
+                    item:PivotTo(character:GetPivot())
+                end
             end
         end
     end)
-end, 4)
-
-Btn(eT, "🧱 Remove Walls", function()
-    pcall(function()
-        for _, v in pairs(WS.Filter.InvisibleWalls:GetChildren()) do
-            if v.Name:lower():match("invis") then v:Destroy() end
-        end
-    end)
-end, 5)
-
--- Open SafeHouse door (just fire remote, no teleport)
-Btn(eT, "🚪 Open SafeHouse", function()
-    pcall(function() WS.Map.SafeHouse.Door.RemoteEvent:FireServer("Door") end)
-end, 6)
-
--- Fix Power (just fire remote, no teleport)
-Btn(eT, "⚡ Fix Power", function()
-    pcall(function() WS.Map.PowerStation.StationFolder.RemoteEvent:FireServer("StationStart") end)
 end, 7)
 
--- Multi-loot: fire supply crate event
-Btn(eT, "📦 Grab Crate Loot", function()
-    pcall(function() RS.SupplyClientEvent:FireServer("Open", true) end)
+-- 6. Remove Walls (CanCollide = false, less detectable)
+CreateButton(exploitsTab, "🧱 Remove Walls", function()
+    pcall(function()
+        for _, wall in pairs(Workspace.Filter.InvisibleWalls:GetChildren()) do
+            if wall.Name:lower():match("invis") then
+                if wall:IsA("BasePart") then
+                    wall.CanCollide = false
+                    wall.Transparency = 1
+                else
+                    for _, part in pairs(wall:GetDescendants()) do
+                        if part:IsA("BasePart") then
+                            part.CanCollide = false
+                            part.Transparency = 1
+                        end
+                    end
+                end
+            end
+        end
+    end)
 end, 8)
 
-Sep(eT, 9)
+-- 7. Open SafeHouse door (remote only, no teleport)
+CreateButton(exploitsTab, "🚪 Open SafeHouse", function()
+    pcall(function()
+        Workspace.Map.SafeHouse.Door.RemoteEvent:FireServer("Door")
+    end)
+end, 9)
 
-local rkL = Lbl(eT, "🎯 Target: ...", 10)
-local tmL = Lbl(eT, "⏰ Timer: ...", 11)
-local bhL = Lbl(eT, "🩸 Blood Hour: No", 12)
+-- 8. Open Tower hatch (try multiple paths)
+CreateButton(exploitsTab, "🔓 Open Tower", function()
+    pcall(function() Workspace.Map.Tower.Door.RemoteEvent:FireServer("Door") end)
+    pcall(function() Workspace.Map.WatchTower.Door.RemoteEvent:FireServer("Door") end)
+    pcall(function() Workspace.Map.Tower.Hatch.RemoteEvent:FireServer("Open") end)
+    pcall(function() Workspace.Map.RadioTower.Door.RemoteEvent:FireServer("Door") end)
+    -- Try finding any door in Tower hierarchy
+    pcall(function()
+        for _, child in pairs(Workspace.Map:GetChildren()) do
+            if child.Name:lower():match("tower") then
+                for _, sub in pairs(child:GetDescendants()) do
+                    if sub:IsA("RemoteEvent") then
+                        sub:FireServer("Door")
+                    end
+                end
+            end
+        end
+    end)
+end, 10)
 
-Sep(eT, 13)
+-- 9. Fix Power (instant, remote only, no teleport)
+CreateButton(exploitsTab, "⚡ Fix Power", function()
+    pcall(function()
+        Workspace.Map.PowerStation.StationFolder.RemoteEvent:FireServer("StationStart")
+    end)
+    -- Also try ProximityPrompts
+    pcall(function()
+        for _, descendant in pairs(Workspace.Map.PowerStation:GetDescendants()) do
+            if descendant:IsA("ProximityPrompt") then
+                fireproximityprompt(descendant)
+            end
+        end
+    end)
+end, 11)
 
-Btn(eT, "🗑️ Unload", function()
-    for _, h in pairs(allHL) do pcall(function() h:Destroy() end) end; allHL = {}
-    for _, c in pairs(allConn) do pcall(function() c:Disconnect() end) end; allConn = {}
-    for _, m in pairs(locParts) do pcall(function() m:Destroy() end) end; locParts = {}
-    stamOn, nvgOn, kaOn, pEsp, rEsp, sEsp, lEsp = false, false, false, false, false, false, false
-    dayOn, tpOn, spdOn, fovOn, ioOn, noFall, locOn = false, false, false, false, false, false, false
-    pcall(function() WS.CurrentCamera.FieldOfView = 70 end)
-    pcall(function() LP.CameraMode = Enum.CameraMode.LockFirstPerson end)
-    pcall(function() Lighting.ClockTime = 0; Lighting.FogEnd = 200; Lighting.GlobalShadows = true end)
-    pcall(function() SG:Destroy() end)
-end, 14)
+CreateSeparator(exploitsTab, 12)
+
+-- 10. Info Labels
+local rakeTargetLabel = CreateInfoLabel(exploitsTab, "🎯 Target: ...", 13)
+local timerLabel = CreateInfoLabel(exploitsTab, "⏰ Timer: ...", 14)
+local bloodHourLabel = CreateInfoLabel(exploitsTab, "🩸 Blood Hour: No", 15)
+
+CreateSeparator(exploitsTab, 16)
+
+-- 11. Unload
+CreateButton(exploitsTab, "🗑️ Unload", function()
+    for _, highlight in pairs(allHighlights) do pcall(function() highlight:Destroy() end) end
+    allHighlights = {}
+    for _, connection in pairs(allConnections) do pcall(function() connection:Disconnect() end) end
+    allConnections = {}
+    for _, marker in pairs(locationParts) do pcall(function() marker:Destroy() end) end
+    locationParts = {}
+
+    staminaEnabled = false
+    nightVisionEnabled = false
+    killAuraEnabled = false
+    playerESPEnabled = false
+    rakeESPEnabled = false
+    scrapESPEnabled = false
+    lootESPEnabled = false
+    dayModeEnabled = false
+    thirdPersonEnabled = false
+    speedEnabled = false
+    fovEnabled = false
+    instaOpenEnabled = false
+    multiLootEnabled = false
+    noFallDamage = false
+    antiDetectEnabled = false
+    locationESPEnabled = false
+
+    pcall(function() Workspace.CurrentCamera.FieldOfView = 70 end)
+    pcall(function() LocalPlayer.CameraMode = Enum.CameraMode.LockFirstPerson end)
+    pcall(function()
+        Lighting.ClockTime = 0
+        Lighting.FogEnd = 200
+        Lighting.GlobalShadows = true
+    end)
+    pcall(function() ScreenGui:Destroy() end)
+end, 17)
 
 
 -- ============================================================
---              HEARTBEAT: EVERY-FRAME ENFORCEMENT
+--           HEARTBEAT ENFORCEMENT (persistent features)
 -- ============================================================
 
--- Camera, Speed, FOV — every frame to prevent game overrides
-tC(RunService.Heartbeat:Connect(function()
-    -- 3rd Person: enforce every frame
-    if tpOn then
+-- EVERY FRAME: Camera, Speed, FOV, AntiDetect
+trackConnection(RunService.Heartbeat:Connect(function()
+    -- 3rd Person: enforce every frame, prevents reset on damage/equip
+    if thirdPersonEnabled then
         pcall(function()
-            LP.CameraMode = Enum.CameraMode.Classic
-            LP.CameraMaxZoomDistance = 100
-            LP.CameraMinZoomDistance = 0.5
+            LocalPlayer.CameraMode = Enum.CameraMode.Classic
+            LocalPlayer.CameraMaxZoomDistance = 100
+            LocalPlayer.CameraMinZoomDistance = 0.5
         end)
     end
 
     -- WalkSpeed: enforce every frame
-    if spdOn then
+    if speedEnabled then
         pcall(function()
-            local hum = LP.Character and LP.Character:FindFirstChildOfClass("Humanoid")
-            if hum then hum.WalkSpeed = spdVal end
+            local humanoid = LocalPlayer.Character and LocalPlayer.Character:FindFirstChildOfClass("Humanoid")
+            if humanoid then humanoid.WalkSpeed = speedValue end
         end)
     end
 
     -- FOV: enforce every frame
-    if fovOn then
-        pcall(function() WS.CurrentCamera.FieldOfView = fovVal end)
+    if fovEnabled then
+        pcall(function() Workspace.CurrentCamera.FieldOfView = fovValue end)
     end
-end))
 
--- Reactive overrides: catch game resetting camera properties instantly
-tC(LP:GetPropertyChangedSignal("CameraMode"):Connect(function()
-    if tpOn then LP.CameraMode = Enum.CameraMode.Classic end
-end))
-
-tC(LP:GetPropertyChangedSignal("CameraMaxZoomDistance"):Connect(function()
-    if tpOn then LP.CameraMaxZoomDistance = 100 end
-end))
-
--- Day lighting: override every frame to prevent flicker
-tC(RunService.Heartbeat:Connect(function()
-    if dayOn then
+    -- Day Mode: enforce every frame (prevents flicker)
+    if dayModeEnabled then
         pcall(function()
             Lighting.ClockTime = 14
             Lighting.FogEnd = 9e9
             Lighting.GlobalShadows = false
         end)
         pcall(function()
-            local clp = RS:FindFirstChild("CurrentLightingProperties")
-            if clp then
-                if clp:FindFirstChild("FogEnd") then clp.FogEnd.Value = 9e9 end
+            local props = ReplicatedStorage:FindFirstChild("CurrentLightingProperties")
+            if props and props:FindFirstChild("FogEnd") then
+                props.FogEnd.Value = 9e9
+            end
+        end)
+    end
+
+    -- AntiDetect: block server position corrections
+    if antiDetectEnabled then
+        pcall(function()
+            local hrp = LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("HumanoidRootPart")
+            if hrp and lastSafePosition then
+                local current = hrp.Position
+                local horizontalDist = (
+                    Vector3.new(current.X, 0, current.Z) -
+                    Vector3.new(lastSafePosition.X, 0, lastSafePosition.Z)
+                ).Magnitude
+
+                -- If teleported > 35 studs horizontally in one frame = server correction
+                if horizontalDist > 35 and (tick() - antiDetectStartTime) > 3 then
+                    hrp.CFrame = CFrame.new(lastSafePosition)
+                else
+                    lastSafePosition = current
+                end
             end
         end)
     end
 end))
 
--- Reactive: if game changes lighting, override immediately
-tC(Lighting:GetPropertyChangedSignal("ClockTime"):Connect(function()
-    if dayOn then Lighting.ClockTime = 14 end
+-- REACTIVE: instant response to game property changes
+trackConnection(LocalPlayer:GetPropertyChangedSignal("CameraMode"):Connect(function()
+    if thirdPersonEnabled then
+        LocalPlayer.CameraMode = Enum.CameraMode.Classic
+    end
 end))
 
-tC(Lighting:GetPropertyChangedSignal("FogEnd"):Connect(function()
-    if dayOn then Lighting.FogEnd = 9e9 end
+trackConnection(LocalPlayer:GetPropertyChangedSignal("CameraMaxZoomDistance"):Connect(function()
+    if thirdPersonEnabled then
+        LocalPlayer.CameraMaxZoomDistance = 100
+    end
 end))
 
--- InstaOpen boxes + Info labels — throttled (0.3s)
-local tk = 0
-tC(RunService.Heartbeat:Connect(function(dt)
-    tk = tk + dt
-    if tk < 0.3 then return end
-    tk = 0
+trackConnection(Lighting:GetPropertyChangedSignal("ClockTime"):Connect(function()
+    if dayModeEnabled then Lighting.ClockTime = 14 end
+end))
 
-    if ioOn then pcall(function()
-        for _, box in pairs(WS.Debris.SupplyCrates:GetChildren()) do
-            if box.Name == "Box" then
-                local gp = box:FindFirstChild("GUIPart")
-                if gp and gp:FindFirstChild("ProximityPrompt") then
-                    for attr, _ in pairs(gp.ProximityPrompt:GetAttributes()) do
-                        gp.ProximityPrompt:SetAttribute(attr, false)
+trackConnection(Lighting:GetPropertyChangedSignal("FogEnd"):Connect(function()
+    if dayModeEnabled then Lighting.FogEnd = 9e9 end
+end))
+
+-- Watch for camera changes (FOV reset on new camera)
+local function watchCameraFOV()
+    pcall(function()
+        local camera = Workspace.CurrentCamera
+        if camera then
+            trackConnection(camera:GetPropertyChangedSignal("FieldOfView"):Connect(function()
+                if fovEnabled then camera.FieldOfView = fovValue end
+            end))
+        end
+    end)
+end
+watchCameraFOV()
+
+trackConnection(Workspace:GetPropertyChangedSignal("CurrentCamera"):Connect(function()
+    watchCameraFOV()
+end))
+
+-- THROTTLED: InstaOpen, MultiLoot, Info Labels (0.3s)
+local throttleTick = 0
+trackConnection(RunService.Heartbeat:Connect(function(deltaTime)
+    throttleTick = throttleTick + deltaTime
+    if throttleTick < 0.3 then return end
+    throttleTick = 0
+
+    -- Insta-Open Boxes
+    if instaOpenEnabled then
+        pcall(function()
+            for _, box in pairs(Workspace.Debris.SupplyCrates:GetChildren()) do
+                if box.Name == "Box" then
+                    local guiPart = box:FindFirstChild("GUIPart")
+                    if guiPart and guiPart:FindFirstChild("ProximityPrompt") then
+                        for attribute, _ in pairs(guiPart.ProximityPrompt:GetAttributes()) do
+                            guiPart.ProximityPrompt:SetAttribute(attribute, false)
+                        end
                     end
+                    local unlockValue = box:FindFirstChild("UnlockValue")
+                    if unlockValue then unlockValue.Value = 100 end
                 end
-                local uv = box:FindFirstChild("UnlockValue")
-                if uv then uv.Value = 100 end
             end
-        end
-    end) end
+        end)
+    end
 
-    -- Info labels
+    -- Multi-Loot: continuous grab when enabled
+    if multiLootEnabled and instaOpenEnabled then
+        pcall(function()
+            ReplicatedStorage.SupplyClientEvent:FireServer("Open", true)
+        end)
+    end
+
+    -- Info labels update
     pcall(function()
-        local rake = WS:FindFirstChild("Rake")
+        local rake = Workspace:FindFirstChild("Rake")
         if rake and rake:FindFirstChild("TargetVal") and rake.TargetVal.Value then
-            rkL.Text = "  🎯 " .. tostring(rake.TargetVal.Value.Parent)
-        else rkL.Text = "  🎯 Target: None" end
-    end)
-    pcall(function()
-        if RS:FindFirstChild("Night") and RS:FindFirstChild("Timer") then
-            local p = RS.Night.Value and "⏰ Day: " or "⏰ Night: "
-            tmL.Text = "  " .. p .. tostring(RS.Timer.Value)
+            rakeTargetLabel.Text = "  🎯 " .. tostring(rake.TargetVal.Value.Parent)
+        else
+            rakeTargetLabel.Text = "  🎯 Target: None"
         end
     end)
+
     pcall(function()
-        if RS:FindFirstChild("InitiateBloodHour") then
-            if RS.InitiateBloodHour.Value == true then
-                bhL.Text = "  🩸 ⚠️ BLOOD HOUR!"; bhL.TextColor3 = C.Red
+        if ReplicatedStorage:FindFirstChild("Night") and ReplicatedStorage:FindFirstChild("Timer") then
+            local prefix = ReplicatedStorage.Night.Value and "⏰ Day: " or "⏰ Night: "
+            timerLabel.Text = "  " .. prefix .. tostring(ReplicatedStorage.Timer.Value)
+        end
+    end)
+
+    pcall(function()
+        if ReplicatedStorage:FindFirstChild("InitiateBloodHour") then
+            if ReplicatedStorage.InitiateBloodHour.Value == true then
+                bloodHourLabel.Text = "  🩸 ⚠️ BLOOD HOUR!"
+                bloodHourLabel.TextColor3 = Colors.Red
             else
-                bhL.Text = "  🩸 Blood Hour: No"; bhL.TextColor3 = C.Dim
+                bloodHourLabel.Text = "  🩸 Blood Hour: No"
+                bloodHourLabel.TextColor3 = Colors.TextDim
             end
         end
     end)
 end))
 
--- ESP scan (1.2s)
+-- ESP scan loop (1.2s)
 task.spawn(function()
     while task.wait(1.2) do
-        if pEsp then pcall(function()
-            for _, p in pairs(Players:GetChildren()) do
-                if p ~= LP and p.Character then
-                    mkHL(p.Character, Color3.fromRGB(0, 120, 255), "SE_P", espP)
-                    mkBB(p.Character, p.Name, Color3.fromRGB(100, 180, 255), "SB_P", espP)
+        -- Player ESP
+        if playerESPEnabled then
+            pcall(function()
+                for _, player in pairs(Players:GetChildren()) do
+                    if player ~= LocalPlayer and player.Character then
+                        createHighlight(player.Character, Color3.fromRGB(0, 120, 255), "SE_P", espPlayerList)
+                        createBillboard(player.Character, player.Name, Color3.fromRGB(100, 180, 255), "SB_P", espPlayerList)
+                    end
                 end
-            end
-        end) end
+            end)
+        end
 
-        if rEsp then pcall(function()
-            for _, obj in pairs(WS:GetChildren()) do
-                if obj.Name:match("Rake") or obj.Name == "Monster" then
-                    mkHL(obj, Color3.fromRGB(255, 0, 0), "SE_R", espR)
-                    local hp = "Rake"
-                    pcall(function()
-                        if obj:FindFirstChild("Monster") then
-                            hp = "Rake HP: " .. tostring(math.floor(obj.Monster.Health))
-                        end
-                    end)
-                    mkBB(obj, hp, Color3.fromRGB(255, 80, 80), "SB_R", espR)
-                end
-            end
-        end) end
-
-        if sEsp then pcall(function()
-            if WS:FindFirstChild("Filter") and WS.Filter:FindFirstChild("ScrapSpawns") then
-                for _, s in pairs(WS.Filter.ScrapSpawns:GetDescendants()) do
-                    if s.Name == "Scrap" then
-                        local lv = "?"
+        -- Rake ESP
+        if rakeESPEnabled then
+            pcall(function()
+                for _, object in pairs(Workspace:GetChildren()) do
+                    if object.Name:match("Rake") or object.Name == "Monster" then
+                        createHighlight(object, Color3.fromRGB(255, 0, 0), "SE_R", espRakeList)
+                        local healthText = "Rake"
                         pcall(function()
-                            if s.Parent and s.Parent:FindFirstChild("LevelVal") then
-                                lv = tostring(s.Parent.LevelVal.Value)
+                            if object:FindFirstChild("Monster") then
+                                healthText = "Rake HP: " .. tostring(math.floor(object.Monster.Health))
                             end
                         end)
-                        mkHL(s, Color3.fromRGB(139, 69, 19), "SE_S", espS)
-                        mkBB(s, "Scrap Lvl " .. lv, Color3.fromRGB(180, 120, 60), "SB_S", espS)
+                        createBillboard(object, healthText, Color3.fromRGB(255, 80, 80), "SB_R", espRakeList)
                     end
                 end
-            end
-        end) end
+            end)
+        end
 
-        if lEsp then pcall(function()
-            for _, obj in pairs(WS:GetChildren()) do
-                if obj.Name == "FlareGunPickUp" then
-                    mkHL(obj, Color3.fromRGB(255, 220, 0), "SE_L", espL)
-                    mkBB(obj, "Flare Gun", Color3.fromRGB(255, 220, 0), "SB_L", espL)
-                end
-            end
-            if WS:FindFirstChild("Debris") and WS.Debris:FindFirstChild("SupplyCrates") then
-                for _, b in pairs(WS.Debris.SupplyCrates:GetChildren()) do
-                    if b.Name == "Box" then
-                        mkHL(b, Color3.fromRGB(255, 180, 0), "SE_L2", espL)
-                        mkBB(b, "Supply Box", Color3.fromRGB(255, 200, 50), "SB_L2", espL)
+        -- Scrap ESP
+        if scrapESPEnabled then
+            pcall(function()
+                if Workspace:FindFirstChild("Filter") and Workspace.Filter:FindFirstChild("ScrapSpawns") then
+                    for _, scrap in pairs(Workspace.Filter.ScrapSpawns:GetDescendants()) do
+                        if scrap.Name == "Scrap" then
+                            local level = "?"
+                            pcall(function()
+                                if scrap.Parent and scrap.Parent:FindFirstChild("LevelVal") then
+                                    level = tostring(scrap.Parent.LevelVal.Value)
+                                end
+                            end)
+                            createHighlight(scrap, Color3.fromRGB(139, 69, 19), "SE_S", espScrapList)
+                            createBillboard(scrap, "Scrap Lvl " .. level, Color3.fromRGB(180, 120, 60), "SB_S", espScrapList)
+                        end
                     end
                 end
-            end
-        end) end
+            end)
+        end
+
+        -- Loot ESP
+        if lootESPEnabled then
+            pcall(function()
+                for _, object in pairs(Workspace:GetChildren()) do
+                    if object.Name == "FlareGunPickUp" then
+                        createHighlight(object, Color3.fromRGB(255, 220, 0), "SE_L", espLootList)
+                        createBillboard(object, "Flare Gun", Color3.fromRGB(255, 220, 0), "SB_L", espLootList)
+                    end
+                end
+                if Workspace:FindFirstChild("Debris") and Workspace.Debris:FindFirstChild("SupplyCrates") then
+                    for _, box in pairs(Workspace.Debris.SupplyCrates:GetChildren()) do
+                        if box.Name == "Box" then
+                            createHighlight(box, Color3.fromRGB(255, 180, 0), "SE_L2", espLootList)
+                            createBillboard(box, "Supply Box", Color3.fromRGB(255, 200, 50), "SB_L2", espLootList)
+                        end
+                    end
+                end
+            end)
+        end
     end
 end)
