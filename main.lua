@@ -650,7 +650,6 @@ local LOCATIONS = {
     {"Shop",          Vector3.new(-25.2, 20, -258.4)},
     {"Power Station", Vector3.new(-281.7, 24, -212.7)},
     {"Base Camp",     Vector3.new(-70.7, 20, 209.0)},
-    {"Tower",         Vector3.new(-155.0, 45, -45.0)},
 }
 
 CreateToggle(visualsTab, "📍 Location Names", function(state)
@@ -878,24 +877,23 @@ local wallsRemoved = false
 local savedWallParts = {} -- stores references to toggled parts
 
 -- Helper: apply wall removal (called on toggle + after respawn)
+-- Uses Parent=nil to FULLY remove walls from client (prevents overlap detection)
 local function applyRemoveWalls()
     savedWallParts = {}
     pcall(function()
         for _, wall in pairs(Workspace.Filter.InvisibleWalls:GetDescendants()) do
             if wall:IsA("BasePart") then
-                table.insert(savedWallParts, wall)
-                wall.CanCollide = false
-                wall.Transparency = 1
+                table.insert(savedWallParts, {wall, wall.Parent})
+                wall.Parent = nil  -- fully remove from game world
             end
         end
     end)
 end
 
 local function restoreWalls()
-    for _, wall in pairs(savedWallParts) do
+    for _, data in pairs(savedWallParts) do
         pcall(function()
-            wall.CanCollide = true
-            wall.Transparency = 0
+            data[1].Parent = data[2]  -- restore to original parent
         end)
     end
     savedWallParts = {}
@@ -918,8 +916,8 @@ CreateButton(exploitsTab, "🚪 Open SafeHouse", function()
     end)
 end, 9)
 
--- 8. Open Tower hatch (Observation Tower — lever + trapdoor)
-CreateButton(exploitsTab, "🔓 Open Tower", function()
+-- 8. Open Tower hatch {Beta} (Observation Tower — lever + trapdoor)
+CreateButton(exploitsTab, "🔓 Open Tower {Beta}", function()
     -- Known paths for Observation Tower / Trapdoor
     local towerNames = {"ObservationTower", "Observation Tower", "Tower", "WatchTower", "RadioTower"}
     local actionArgs = {"Door", "Open", "Lever", "Toggle", "Interact", "Close", "TrapDoor", "EmergencyRelease"}
@@ -974,18 +972,37 @@ CreateButton(exploitsTab, "🔓 Open Tower", function()
     end)
 end, 10)
 
--- 9. Fix Power (instant, remote only, no teleport)
+-- 9. Fix Power (continuous loop — auto-repairs until done, allows movement)
+local fixPowerActive = false
 CreateButton(exploitsTab, "⚡ Fix Power", function()
-    pcall(function()
-        Workspace.Map.PowerStation.StationFolder.RemoteEvent:FireServer("StationStart")
-    end)
-    -- Also try ProximityPrompts
-    pcall(function()
-        for _, descendant in pairs(Workspace.Map.PowerStation:GetDescendants()) do
-            if descendant:IsA("ProximityPrompt") then
-                fireproximityprompt(descendant)
-            end
+    if fixPowerActive then return end -- prevent double-click
+    fixPowerActive = true
+    task.spawn(function()
+        while fixPowerActive do
+            pcall(function()
+                Workspace.Map.PowerStation.StationFolder.RemoteEvent:FireServer("StationStart")
+            end)
+            pcall(function()
+                for _, descendant in pairs(Workspace.Map.PowerStation:GetDescendants()) do
+                    if descendant:IsA("ProximityPrompt") then
+                        fireproximityprompt(descendant)
+                    end
+                end
+            end)
+            -- Check if power is full
+            pcall(function()
+                local folder = Workspace.Map.PowerStation:FindFirstChild("StationFolder")
+                if folder then
+                    for _, v in pairs(folder:GetChildren()) do
+                        if (v:IsA("NumberValue") or v:IsA("IntValue")) and v.Value >= 1000 then
+                            fixPowerActive = false
+                        end
+                    end
+                end
+            end)
+            task.wait(0.5)
         end
+        fixPowerActive = false
     end)
 end, 11)
 
@@ -1025,6 +1042,9 @@ CreateButton(exploitsTab, "🗑️ Unload", function()
     antiDetectEnabled = false
     noClipEnabled = false
     locationESPEnabled = false
+    fixPowerActive = false
+    if wallsRemoved then restoreWalls() end
+    wallsRemoved = false
 
     pcall(function() Workspace.CurrentCamera.FieldOfView = 70 end)
     pcall(function() LocalPlayer.CameraMode = Enum.CameraMode.LockFirstPerson end)
