@@ -514,10 +514,10 @@ local noClipEnabled = false
 local lastExploitOffTime = 0
 
 -- ============================================================
---    __namecall HOOK: v3 PATTERN + ANTI-CHEAT REMOTE BLOCKER
+--    __namecall HOOK: EXACT v3 PATTERN (proven safe)
 -- ============================================================
--- SAFE CHECKS ONLY: tostring(self) + string operations.
--- NEVER use self:IsA() or typeof(self) = DETECTION.
+-- IMPORTANT: ONLY the FD_Event check goes here!
+-- Any extra checks = timing anomaly = DETECTED = KICKED.
 local _hookInstalled = false
 if not _hookInstalled then
     _hookInstalled = true
@@ -525,48 +525,56 @@ if not _hookInstalled then
     local originalNamecall = metatable.__namecall
     setreadonly(metatable, false)
     metatable.__namecall = function(self, ...)
-        -- No Fall Damage (proven safe v3 pattern)
         if noFallDamage == true then
             local args = {...}
             if tostring(self) == "FD_Event" then
-                args[1] = 0
-                args[2] = 0
+                args[1] = 0; args[2] = 0
                 return self.FireServer(self, unpack(args))
             end
         end
-
-        -- Anti-cheat remote blocker: block violation reports to server
-        -- Active when walls removed, noclip on, or within 30s cooldown
-        if wallsRemoved or noClipEnabled or (tick() - lastExploitOffTime) < 30 then
-            local remoteName = tostring(self)
-            -- Block remotes with anti-cheat names (safe: only string ops)
-            local rn = remoteName:lower()
-            if rn:match("bug") or rn:match("clip") or rn:match("cheat")
-            or rn:match("exploit") or rn:match("detect") or rn:match("violation")
-            or rn:match("report") or rn:match("anticheat") or rn:match("anti_cheat")
-            or rn:match("kick") or rn:match("flag") or rn:match("warn") then
-                return nil -- silently drop
-            end
-
-            -- Also check string arguments for anti-cheat keywords
-            local args = {...}
-            for i = 1, #args do
-                if type(args[i]) == "string" then
-                    local a = args[i]:lower()
-                    if a:match("bug") or a:match("clip") or a:match("cheat")
-                    or a:match("exploit") or a:match("teleport") or a:match("detect")
-                    or a:match("violation") or a:match("report") or a:match("bugged")
-                    or a:match("kick") or a:match("flag") or a:match("stuck") then
-                        return nil -- silently drop
-                    end
-                end
-            end
-        end
-
         return originalNamecall(self, ...)
     end
     setreadonly(metatable, true)
 end
+
+-- ============================================================
+--    ANTI-CHEAT SCANNER: separate background thread (stealth)
+-- ============================================================
+-- Instead of modifying __namecall (detected!), we periodically
+-- find and disable anti-clip scripts + destroy their remotes.
+task.spawn(function()
+    while task.wait(3) do
+        if wallsRemoved or noClipEnabled or (tick() - lastExploitOffTime) < 30 then
+            -- Disable anti-clip LocalScripts in character
+            pcall(function()
+                if LocalPlayer.Character then
+                    for _, s in pairs(LocalPlayer.Character:GetDescendants()) do
+                        if s:IsA("LocalScript") then
+                            local n = s.Name:lower()
+                            if n:match("bug") or n:match("clip") or n:match("cheat")
+                            or n:match("exploit") or n:match("valid") or n:match("check")
+                            or n:match("detect") or n:match("anti") then
+                                s.Disabled = true
+                            end
+                        end
+                    end
+                end
+            end)
+            -- Disable in PlayerScripts
+            pcall(function()
+                for _, s in pairs(LocalPlayer.PlayerScripts:GetDescendants()) do
+                    if s:IsA("LocalScript") then
+                        local n = s.Name:lower()
+                        if n:match("bug") or n:match("clip") or n:match("cheat")
+                        or n:match("anticheat") or n:match("exploit") or n:match("valid") then
+                            s.Disabled = true
+                        end
+                    end
+                end
+            end)
+        end
+    end
+end)
 
 CreateSeparator(playerTab, 4)
 
@@ -1169,14 +1177,15 @@ trackConnection(RunService.Heartbeat:Connect(function()
         end)
     end
 
-    -- Anti-Death: prevent anti-clip system from killing us
-    -- Active during NoClip/RemoveWalls + 30 seconds after turning off
+    -- God Mode: infinite health when exploit mode active
+    -- Uses math.huge so damage is negligible (no heal loop)
     local antiDeathActive = noClipEnabled or wallsRemoved or (tick() - lastExploitOffTime) < 30
     if antiDeathActive then
         pcall(function()
             local humanoid = LocalPlayer.Character and LocalPlayer.Character:FindFirstChildOfClass("Humanoid")
-            if humanoid and humanoid.Health > 0 then
-                humanoid.Health = humanoid.MaxHealth
+            if humanoid then
+                humanoid.MaxHealth = math.huge
+                humanoid.Health = math.huge
             end
         end)
     end
