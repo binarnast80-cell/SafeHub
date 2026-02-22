@@ -933,6 +933,88 @@ CreateSeparator(exploitsTab, 12)
 local rakeTargetLabel = CreateInfoLabel(exploitsTab, "🎯 Target: ...", 13)
 local timerLabel = CreateInfoLabel(exploitsTab, "⏰ Timer: ...", 14)
 local bloodHourLabel = CreateInfoLabel(exploitsTab, "🩸 Blood Hour: No", 15)
+local powerLabel = CreateInfoLabel(exploitsTab, "⚡ Power: Scanning...", 16)
+
+
+-- Power station value scanner — dumps ALL found values for diagnosis
+local _powerFoundPath = nil
+local function getPowerDisplay()
+    -- If we already found the right value, just read it
+    if _powerFoundPath then
+        local ok, val = pcall(function() return _powerFoundPath.Value end)
+        if ok and val then return math.floor(val), _powerFoundPath.Name end
+        _powerFoundPath = nil -- value was destroyed, re-scan
+    end
+
+    local results = {}
+
+    -- 1. Scan PowerStation for ALL ValueBase descendants
+    pcall(function()
+        local station = Workspace.Map:FindFirstChild("PowerStation")
+        if station then
+            for _, v in pairs(station:GetDescendants()) do
+                if v:IsA("ValueBase") then
+                    table.insert(results, {obj = v, path = v:GetFullName(), name = v.Name, val = tostring(v.Value)})
+                end
+            end
+            -- Also check attributes on all parts
+            for _, v in pairs(station:GetDescendants()) do
+                pcall(function()
+                    local attrs = v:GetAttributes()
+                    for attrName, attrVal in pairs(attrs) do
+                        if type(attrVal) == "number" then
+                            table.insert(results, {name = v.Name .. "." .. attrName, val = tostring(attrVal), path = v:GetFullName() .. ":" .. attrName})
+                        end
+                    end
+                end)
+            end
+            -- Check attributes on station itself
+            pcall(function()
+                local attrs = station:GetAttributes()
+                for attrName, attrVal in pairs(attrs) do
+                    if type(attrVal) == "number" then
+                        table.insert(results, {name = "Station." .. attrName, val = tostring(attrVal), path = station:GetFullName() .. ":" .. attrName})
+                    end
+                end
+            end)
+        end
+    end)
+
+    -- 2. Scan ReplicatedStorage for power-related values
+    pcall(function()
+        for _, v in pairs(ReplicatedStorage:GetDescendants()) do
+            if v:IsA("ValueBase") then
+                local n = v.Name:lower()
+                if n:match("power") or n:match("energy") or n:match("station") or n:match("charge") then
+                    table.insert(results, {obj = v, path = v:GetFullName(), name = v.Name, val = tostring(v.Value)})
+                end
+            end
+        end
+    end)
+
+    if #results == 0 then
+        return nil, nil
+    end
+
+    -- Build diagnostic string showing ALL found values
+    local parts = {}
+    for _, r in pairs(results) do
+        table.insert(parts, r.name .. "=" .. r.val)
+        -- Auto-select: if it's a number between 0-1000 and name matches power keywords
+        if r.obj and not _powerFoundPath then
+            pcall(function()
+                if (r.obj:IsA("NumberValue") or r.obj:IsA("IntValue")) then
+                    local num = tonumber(r.obj.Value)
+                    if num and num >= 0 and num <= 1000 then
+                        _powerFoundPath = r.obj
+                    end
+                end
+            end)
+        end
+    end
+
+    return table.concat(parts, ", "), "SCAN"
+end
 
 CreateSeparator(exploitsTab, 17)
 
@@ -1076,6 +1158,8 @@ trackConnection(RunService.Heartbeat:Connect(function()
             for _, d in pairs(Workspace.Map.PowerStation:GetDescendants()) do
                 if d:IsA("ProximityPrompt") then
                     d.HoldDuration = 0
+                    d.MaxActivationDistance = 9e9
+                    d.RequiresLineOfSight = false
                     fireproximityprompt(d)
                 end
             end
@@ -1211,6 +1295,18 @@ trackConnection(RunService.Heartbeat:Connect(function(deltaTime)
                 bloodHourLabel.Text = "  🩸 Blood Hour: No"
                 bloodHourLabel.TextColor3 = Colors.TextDim
             end
+        end
+    end)
+
+    -- Power level display (diagnostic scan)
+    pcall(function()
+        local display, source = getPowerDisplay()
+        if display and source == "SCAN" then
+            powerLabel.Text = "  ⚡ " .. display
+        elseif display then
+            powerLabel.Text = "  ⚡ Power: " .. display
+        else
+            powerLabel.Text = "  ⚡ Power: no values found"
         end
     end)
 end))
