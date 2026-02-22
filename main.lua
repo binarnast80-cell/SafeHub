@@ -650,6 +650,7 @@ local LOCATIONS = {
     {"Shop",          Vector3.new(-25.2, 20, -258.4)},
     {"Power Station", Vector3.new(-281.7, 24, -212.7)},
     {"Base Camp",     Vector3.new(-70.7, 20, 209.0)},
+    {"Tower",         Vector3.new(-155.0, 45, -45.0)},
 }
 
 CreateToggle(visualsTab, "📍 Location Names", function(state)
@@ -888,29 +889,6 @@ local function applyRemoveWalls()
             end
         end
     end)
-    -- Disable anti-clip scripts on character
-    pcall(function()
-        for _, script in pairs(LocalPlayer.Character:GetDescendants()) do
-            if script:IsA("LocalScript") then
-                local n = script.Name:lower()
-                if n:match("clip") or n:match("bug") or n:match("cheat")
-                or n:match("exploit") or n:match("valid") or n:match("check") then
-                    script.Disabled = true
-                end
-            end
-        end
-    end)
-    pcall(function()
-        for _, s in pairs(LocalPlayer.PlayerScripts:GetDescendants()) do
-            if s:IsA("LocalScript") then
-                local n = s.Name:lower()
-                if n:match("clip") or n:match("bug") or n:match("anticheat")
-                or n:match("exploit") or n:match("valid") then
-                    s.Disabled = true
-                end
-            end
-        end
-    end)
 end
 
 local function restoreWalls()
@@ -944,7 +922,7 @@ end, 9)
 CreateButton(exploitsTab, "🔓 Open Tower", function()
     -- Known paths for Observation Tower / Trapdoor
     local towerNames = {"ObservationTower", "Observation Tower", "Tower", "WatchTower", "RadioTower"}
-    local actionArgs = {"Door", "Open", "Lever", "Toggle", "Interact", "Close", "TrapDoor"}
+    local actionArgs = {"Door", "Open", "Lever", "Toggle", "Interact", "Close", "TrapDoor", "EmergencyRelease"}
 
     for _, tName in pairs(towerNames) do
         pcall(function()
@@ -974,7 +952,7 @@ CreateButton(exploitsTab, "🔓 Open Tower", function()
         for _, obj in pairs(Workspace.Map:GetDescendants()) do
             local n = obj.Name:lower()
             if n:match("trapdoor") or n:match("trap_door") or n:match("hatch")
-            or n:match("lever") or n:match("emergency") then
+            or n:match("lever") or n:match("emergency") or n:match("release") then
                 pcall(function()
                     if obj:IsA("ProximityPrompt") then fireproximityprompt(obj) end
                     if obj:IsA("ClickDetector") then fireclickdetector(obj) end
@@ -1017,8 +995,9 @@ CreateSeparator(exploitsTab, 12)
 local rakeTargetLabel = CreateInfoLabel(exploitsTab, "🎯 Target: ...", 13)
 local timerLabel = CreateInfoLabel(exploitsTab, "⏰ Timer: ...", 14)
 local bloodHourLabel = CreateInfoLabel(exploitsTab, "🩸 Blood Hour: No", 15)
+local powerLabel = CreateInfoLabel(exploitsTab, "⚡ Power: ...", 16)
 
-CreateSeparator(exploitsTab, 16)
+CreateSeparator(exploitsTab, 17)
 
 -- 11. Unload
 CreateButton(exploitsTab, "🗑️ Unload", function()
@@ -1267,6 +1246,33 @@ trackConnection(RunService.Heartbeat:Connect(function(deltaTime)
             else
                 bloodHourLabel.Text = "  🩸 Blood Hour: No"
                 bloodHourLabel.TextColor3 = Colors.TextDim
+            end
+        end
+    end)
+
+    -- Power Station progress
+    pcall(function()
+        local station = Workspace.Map:FindFirstChild("PowerStation")
+        if station then
+            local folder = station:FindFirstChild("StationFolder")
+            if folder then
+                local progress = folder:FindFirstChild("Progress") or folder:FindFirstChild("PowerProgress")
+                    or folder:FindFirstChild("Value") or folder:FindFirstChild("Charge")
+                if progress and progress:IsA("ValueBase") then
+                    local val = math.floor(progress.Value)
+                    local pct = math.floor((val / 1000) * 100)
+                    powerLabel.Text = "  ⚡ Power: " .. val .. "/1000 (" .. pct .. "%)"
+                else
+                    -- Try to find any NumberValue in StationFolder
+                    for _, v in pairs(folder:GetChildren()) do
+                        if v:IsA("NumberValue") or v:IsA("IntValue") then
+                            local val = math.floor(v.Value)
+                            local pct = math.floor((val / 1000) * 100)
+                            powerLabel.Text = "  ⚡ Power: " .. val .. "/1000 (" .. pct .. "%)"
+                            break
+                        end
+                    end
+                end
             end
         end
     end)
