@@ -809,7 +809,7 @@ CreateToggle(exploitsTab, "⚔️ KillAura (200m)", function(state)
 end, 1)
 
 task.spawn(function()
-    while task.wait(0.05) do
+    while task.wait(0.025) do
         if killAuraEnabled then
             pcall(function()
                 local rake = Workspace:FindFirstChild("Rake") or Workspace:FindFirstChild("Monster")
@@ -818,7 +818,7 @@ task.spawn(function()
                     local rakeHRP = rake:FindFirstChild("HumanoidRootPart")
                     if rakeHRP and (rakeHRP.Position - character.HumanoidRootPart.Position).Magnitude < 200 then
                         character.StunStick.Event:FireServer("S")
-                        task.wait(0.025)
+                        task.wait(0.01)
                         character.StunStick.Event:FireServer("H", rakeHRP)
                     end
                 end
