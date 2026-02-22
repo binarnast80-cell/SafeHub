@@ -269,7 +269,7 @@ local function CreateToggle(parent, text, callback, layoutOrder)
     label.Font = Enum.Font.Gotham
     label.Text = text
     label.TextColor3 = Colors.TextWhite
-    label.TextSize = 8
+    label.TextSize = 7
     label.TextXAlignment = Enum.TextXAlignment.Left
     label.TextTruncate = Enum.TextTruncate.AtEnd
 
@@ -321,7 +321,7 @@ local function CreateButton(parent, text, callback, layoutOrder)
     button.Font = Enum.Font.GothamMedium
     button.Text = text
     button.TextColor3 = Colors.TextWhite
-    button.TextSize = 8
+    button.TextSize = 7
     button.AutoButtonColor = false
     button.BorderSizePixel = 0
     button.LayoutOrder = layoutOrder or 0
@@ -378,7 +378,7 @@ local function CreateStepper(parent, text, minVal, maxVal, step, default, callba
     label.Font = Enum.Font.Gotham
     label.Text = text
     label.TextColor3 = Colors.TextWhite
-    label.TextSize = 8
+    label.TextSize = 7
     label.TextXAlignment = Enum.TextXAlignment.Left
 
     local currentValue = default
@@ -390,7 +390,7 @@ local function CreateStepper(parent, text, minVal, maxVal, step, default, callba
     valueLabel.Font = Enum.Font.GothamMedium
     valueLabel.Text = tostring(currentValue)
     valueLabel.TextColor3 = Colors.Accent
-    valueLabel.TextSize = 8
+    valueLabel.TextSize = 7
 
     local function makeStepButton(buttonText, xPosition, delta)
         local stepBtn = Instance.new("TextButton", frame)
@@ -509,7 +509,6 @@ end, 3)
 
 -- Forward declarations for exploit state (used by __namecall hook below)
 -- Actual toggles/values set later in EXPLOITS TAB
-local wallsRemoved = false
 local noClipEnabled = false
 local lastExploitOffTime = 0
 
@@ -544,7 +543,7 @@ end
 -- find and disable anti-clip scripts + destroy their remotes.
 task.spawn(function()
     while task.wait(3) do
-        if wallsRemoved or noClipEnabled or (tick() - lastExploitOffTime) < 30 then
+        if noClipEnabled or (tick() - lastExploitOffTime) < 30 then
             -- Disable anti-clip LocalScripts in character
             pcall(function()
                 if LocalPlayer.Character then
@@ -717,10 +716,25 @@ CreateToggle(visualsTab, "📍 Location Names", function(state)
             textLabel.BackgroundTransparency = 1
             textLabel.TextColor3 = Color3.fromRGB(255, 160, 0)
             textLabel.Text = "📍 " .. location[1]
-            textLabel.TextSize = 11
+            textLabel.TextSize = 9
             textLabel.Font = Enum.Font.GothamBold
             textLabel.TextStrokeTransparency = 0.4
             textLabel.TextStrokeColor3 = Color3.fromRGB(0, 0, 0)
+
+            -- Add power % sub-label for Power Station
+            if location[1] == "Power Station" then
+                local subLabel = Instance.new("TextLabel", billboard)
+                subLabel.Name = "PowerSub"
+                subLabel.Size = UDim2.new(1, 0, 0, 10)
+                subLabel.Position = UDim2.new(0, 0, 1, 0)
+                subLabel.BackgroundTransparency = 1
+                subLabel.TextColor3 = Color3.fromRGB(100, 255, 100)
+                subLabel.Text = "⚡ ..."
+                subLabel.TextSize = 7
+                subLabel.Font = Enum.Font.Gotham
+                subLabel.TextStrokeTransparency = 0.5
+                subLabel.TextStrokeColor3 = Color3.fromRGB(0, 0, 0)
+            end
 
             table.insert(locationParts, part)
             table.insert(allHighlights, part)
@@ -809,7 +823,7 @@ CreateToggle(exploitsTab, "⚔️ KillAura (200m)", function(state)
 end, 1)
 
 task.spawn(function()
-    while task.wait(0.1) do
+    while task.wait(0.05) do
         if killAuraEnabled then
             pcall(function()
                 local rake = Workspace:FindFirstChild("Rake") or Workspace:FindFirstChild("Monster")
@@ -818,7 +832,7 @@ task.spawn(function()
                     local rakeHRP = rake:FindFirstChild("HumanoidRootPart")
                     if rakeHRP and (rakeHRP.Position - character.HumanoidRootPart.Position).Magnitude < 200 then
                         character.StunStick.Event:FireServer("S")
-                        task.wait(0.05)
+                        task.wait(0.025)
                         character.StunStick.Event:FireServer("H", rakeHRP)
                     end
                 end
@@ -913,43 +927,6 @@ CreateButton(exploitsTab, "🧲 Bring Scrap", function()
     end)
 end, 7)
 
--- 6. Remove Walls (toggle — ON removes, OFF restores)
--- wallsRemoved forward-declared above __namecall hook
-local savedWallParts = {} -- stores references to toggled parts
-
--- Helper: apply wall removal (called on toggle + after respawn)
--- Uses Parent=nil to FULLY remove walls from client (prevents overlap detection)
-local function applyRemoveWalls()
-    savedWallParts = {}
-    pcall(function()
-        for _, wall in pairs(Workspace.Filter.InvisibleWalls:GetDescendants()) do
-            if wall:IsA("BasePart") then
-                table.insert(savedWallParts, {wall, wall.Parent})
-                wall.Parent = nil  -- fully remove from game world
-            end
-        end
-    end)
-end
-
-local function restoreWalls()
-    for _, data in pairs(savedWallParts) do
-        pcall(function()
-            data[1].Parent = data[2]  -- restore to original parent
-        end)
-    end
-    savedWallParts = {}
-end
-
-CreateToggle(exploitsTab, "🧱 Remove Walls", function(state)
-    wallsRemoved = state
-    if state then
-        applyRemoveWalls()
-    else
-        restoreWalls()
-        lastExploitOffTime = tick()
-    end
-end, 8)
-
 -- 7. Open SafeHouse door (remote only, no teleport)
 CreateButton(exploitsTab, "🚪 Open SafeHouse", function()
     pcall(function()
@@ -1001,43 +978,20 @@ CreateButton(exploitsTab, "🔓 Open Tower {Beta}", function()
     end)
 end, 10)
 
--- 9. Fix Power (continuous hold — simulates holding interaction)
-local fixPowerActive = false
-CreateButton(exploitsTab, "⚡ Fix Power", function()
-    if fixPowerActive then
-        fixPowerActive = false -- toggle off on second press
-        return
+-- 6. TP to Player (gradual movement toward nearest player)
+local tpToPlayerEnabled = false
+local tpTarget = nil
+CreateToggle(exploitsTab, "📡 TP to Player", function(state)
+    tpToPlayerEnabled = state
+    if not state then
+        tpTarget = nil
     end
-    fixPowerActive = true
-    task.spawn(function()
-        while fixPowerActive do
-            pcall(function()
-                Workspace.Map.PowerStation.StationFolder.RemoteEvent:FireServer("StationStart")
-            end)
-            -- Set HoldDuration=0 on all prompts then fire (simulates instant hold)
-            pcall(function()
-                for _, descendant in pairs(Workspace.Map.PowerStation:GetDescendants()) do
-                    if descendant:IsA("ProximityPrompt") then
-                        descendant.HoldDuration = 0
-                        fireproximityprompt(descendant)
-                    end
-                end
-            end)
-            -- Check if power is full
-            pcall(function()
-                local folder = Workspace.Map.PowerStation:FindFirstChild("StationFolder")
-                if folder then
-                    for _, v in pairs(folder:GetChildren()) do
-                        if (v:IsA("NumberValue") or v:IsA("IntValue")) and v.Value >= 1000 then
-                            fixPowerActive = false
-                        end
-                    end
-                end
-            end)
-            task.wait(0.1) -- fast loop = simulates continuous hold
-        end
-        fixPowerActive = false
-    end)
+end, 10.5)
+
+-- 9. Fix Power (toggle — fires every frame in Heartbeat for continuous hold)
+local fixPowerActive = false
+CreateToggle(exploitsTab, "⚡ Fix Power", function(state)
+    fixPowerActive = state
 end, 11)
 
 CreateSeparator(exploitsTab, 12)
@@ -1077,8 +1031,8 @@ CreateButton(exploitsTab, "🗑️ Unload", function()
     noClipEnabled = false
     locationESPEnabled = false
     fixPowerActive = false
-    if wallsRemoved then restoreWalls() end
-    wallsRemoved = false
+    tpToPlayerEnabled = false
+    tpTarget = nil
 
     pcall(function() Workspace.CurrentCamera.FieldOfView = 70 end)
     pcall(function() LocalPlayer.CameraMode = Enum.CameraMode.LockFirstPerson end)
@@ -1106,11 +1060,24 @@ trackConnection(RunService.Heartbeat:Connect(function()
         end)
     end
 
-    -- WalkSpeed: enforce every frame
+    -- WalkSpeed: enforce every frame + remove trap constraints
     if speedEnabled then
         pcall(function()
-            local humanoid = LocalPlayer.Character and LocalPlayer.Character:FindFirstChildOfClass("Humanoid")
-            if humanoid then humanoid.WalkSpeed = speedValue end
+            local character = LocalPlayer.Character
+            if character then
+                local humanoid = character:FindFirstChildOfClass("Humanoid")
+                if humanoid then
+                    humanoid.WalkSpeed = speedValue
+                    humanoid.JumpPower = 50
+                end
+                -- Remove trap/slowdown body movers
+                for _, obj in pairs(character:GetDescendants()) do
+                    if obj:IsA("BodyVelocity") or obj:IsA("BodyPosition")
+                    or obj:IsA("BodyGyro") or obj:IsA("LinearVelocity") then
+                        obj:Destroy()
+                    end
+                end
+            end
         end)
     end
 
@@ -1169,6 +1136,86 @@ trackConnection(RunService.Heartbeat:Connect(function()
             end
         end)
     end
+
+    -- Fix Power: fire every frame = continuous hold, no gaps
+    if fixPowerActive then
+        pcall(function()
+            Workspace.Map.PowerStation.StationFolder.RemoteEvent:FireServer("StationStart")
+        end)
+        pcall(function()
+            for _, d in pairs(Workspace.Map.PowerStation:GetDescendants()) do
+                if d:IsA("ProximityPrompt") then
+                    d.HoldDuration = 0
+                    fireproximityprompt(d)
+                end
+            end
+        end)
+        -- Auto-stop at 1000
+        pcall(function()
+            local folder = Workspace.Map.PowerStation:FindFirstChild("StationFolder")
+            if folder then
+                for _, v in pairs(folder:GetChildren()) do
+                    if (v:IsA("NumberValue") or v:IsA("IntValue")) and v.Value >= 1000 then
+                        fixPowerActive = false
+                    end
+                end
+            end
+        end)
+    end
+    -- TP to Player: gradual movement toward nearest player
+    if tpToPlayerEnabled then
+        pcall(function()
+            local myHRP = LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("HumanoidRootPart")
+            if not myHRP then return end
+
+            -- Find/validate target
+            if tpTarget then
+                -- Check target still valid
+                local targetChar = tpTarget.Character
+                local targetHRP = targetChar and targetChar:FindFirstChild("HumanoidRootPart")
+                if not targetHRP then
+                    tpTarget = nil -- target died/left, find new
+                end
+            end
+
+            if not tpTarget then
+                -- Find nearest player
+                local nearest = nil
+                local nearestDist = math.huge
+                for _, player in pairs(Players:GetPlayers()) do
+                    if player ~= LocalPlayer and player.Character then
+                        local hrp = player.Character:FindFirstChild("HumanoidRootPart")
+                        if hrp then
+                            local dist = (hrp.Position - myHRP.Position).Magnitude
+                            if dist < nearestDist then
+                                nearest = player
+                                nearestDist = dist
+                            end
+                        end
+                    end
+                end
+                tpTarget = nearest
+            end
+
+            -- Move toward target
+            if tpTarget and tpTarget.Character then
+                local targetHRP = tpTarget.Character:FindFirstChild("HumanoidRootPart")
+                if targetHRP then
+                    local dist = (targetHRP.Position - myHRP.Position).Magnitude
+                    if dist < 5 then
+                        -- Arrived, stop
+                        tpToPlayerEnabled = false
+                        tpTarget = nil
+                    else
+                        -- Gradual move: ~40 studs/sec
+                        local speed = 40
+                        local alpha = math.min(speed * deltaTime / dist, 0.5)
+                        myHRP.CFrame = myHRP.CFrame:Lerp(targetHRP.CFrame, alpha)
+                    end
+                end
+            end
+        end)
+    end
 end))
 
 -- REACTIVE: instant response to game property changes
@@ -1214,11 +1261,6 @@ trackConnection(LocalPlayer.CharacterAdded:Connect(function(newCharacter)
     -- Wait for character to fully load
     task.wait(1.5)
 
-    -- Re-apply Remove Walls if toggle is still on
-    if wallsRemoved then
-        applyRemoveWalls()
-    end
-
     -- Reset AntiDetect safe position to new spawn point
     if antiDetectEnabled then
         pcall(function()
@@ -1260,6 +1302,21 @@ trackConnection(RunService.Heartbeat:Connect(function(deltaTime)
     if multiLootEnabled and instaOpenEnabled then
         pcall(function()
             ReplicatedStorage.SupplyClientEvent:FireServer("Open", true)
+        end)
+        pcall(function()
+            for _, box in pairs(Workspace.Debris.SupplyCrates:GetChildren()) do
+                if box.Name == "Box" then
+                    for _, sub in pairs(box:GetDescendants()) do
+                        if sub:IsA("ProximityPrompt") then
+                            sub.HoldDuration = 0
+                            fireproximityprompt(sub)
+                        end
+                        if sub:IsA("ClickDetector") then
+                            fireclickdetector(sub)
+                        end
+                    end
+                end
+            end
         end)
     end
 
@@ -1318,6 +1375,41 @@ trackConnection(RunService.Heartbeat:Connect(function(deltaTime)
             end
         end
     end)
+
+    -- Update power % on map marker (Location ESP)
+    if locationESPEnabled then
+        pcall(function()
+            for _, part in pairs(locationParts) do
+                local bb = part:FindFirstChildOfClass("BillboardGui")
+                if bb then
+                    local subLabel = bb:FindFirstChild("PowerSub")
+                    if subLabel then
+                        local station = Workspace.Map:FindFirstChild("PowerStation")
+                        if station then
+                            local folder = station:FindFirstChild("StationFolder")
+                            if folder then
+                                for _, v in pairs(folder:GetChildren()) do
+                                    if v:IsA("NumberValue") or v:IsA("IntValue") then
+                                        local val = math.floor(v.Value)
+                                        local pct = math.floor((val / 1000) * 100)
+                                        subLabel.Text = "⚡ " .. pct .. "%"
+                                        if pct >= 100 then
+                                            subLabel.TextColor3 = Color3.fromRGB(0, 255, 0)
+                                        elseif pct > 0 then
+                                            subLabel.TextColor3 = Color3.fromRGB(255, 200, 50)
+                                        else
+                                            subLabel.TextColor3 = Color3.fromRGB(255, 80, 80)
+                                        end
+                                        break
+                                    end
+                                end
+                            end
+                        end
+                    end
+                end
+            end
+        end)
+    end
 end))
 
 -- ESP scan loop (1.2s)
