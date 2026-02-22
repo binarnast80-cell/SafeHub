@@ -798,8 +798,36 @@ CreateToggle(exploitsTab, "🔒 AntiDetect", function(state)
             local hrp = LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("HumanoidRootPart")
             if hrp then lastSafePosition = hrp.Position end
         end)
+        -- Try to disable game anti-clip scripts on character
+        pcall(function()
+            for _, script in pairs(LocalPlayer.Character:GetDescendants()) do
+                if script:IsA("LocalScript") then
+                    local n = script.Name:lower()
+                    if n:match("clip") or n:match("bug") or n:match("cheat")
+                    or n:match("exploit") or n:match("valid") or n:match("check") then
+                        script.Disabled = true
+                    end
+                end
+            end
+        end)
     else
         lastSafePosition = nil
+    end
+end, 2)
+
+-- 2b. NoClip (walk through everything — character parts CanCollide=false)
+local noClipEnabled = false
+CreateToggle(exploitsTab, "👻 NoClip (walk through)", function(state)
+    noClipEnabled = state
+    if not state then
+        -- Restore collision
+        pcall(function()
+            for _, part in pairs(LocalPlayer.Character:GetDescendants()) do
+                if part:IsA("BasePart") and part.Name ~= "HumanoidRootPart" then
+                    part.CanCollide = true
+                end
+            end
+        end)
     end
 end, 2)
 
@@ -842,7 +870,7 @@ CreateButton(exploitsTab, "🧲 Bring Scrap", function()
     end)
 end, 7)
 
--- 6. Remove Walls (CanCollide = false, less detectable)
+-- 6. Remove Walls + disable anti-clip scripts
 CreateButton(exploitsTab, "🧱 Remove Walls", function()
     pcall(function()
         for _, wall in pairs(Workspace.Filter.InvisibleWalls:GetChildren()) do
@@ -857,6 +885,29 @@ CreateButton(exploitsTab, "🧱 Remove Walls", function()
                             part.Transparency = 1
                         end
                     end
+                end
+            end
+        end
+    end)
+    -- Also try to disable any anti-clip/validation scripts in the game
+    pcall(function()
+        for _, script in pairs(LocalPlayer.Character:GetDescendants()) do
+            if script:IsA("LocalScript") then
+                local n = script.Name:lower()
+                if n:match("clip") or n:match("bug") or n:match("cheat")
+                or n:match("exploit") or n:match("valid") or n:match("check") then
+                    script.Disabled = true
+                end
+            end
+        end
+    end)
+    pcall(function()
+        for _, s in pairs(game:GetService("Players").LocalPlayer.PlayerScripts:GetDescendants()) do
+            if s:IsA("LocalScript") then
+                local n = s.Name:lower()
+                if n:match("clip") or n:match("bug") or n:match("anticheat")
+                or n:match("exploit") or n:match("valid") then
+                    s.Disabled = true
                 end
             end
         end
@@ -938,6 +989,7 @@ CreateButton(exploitsTab, "🗑️ Unload", function()
     multiLootEnabled = false
     noFallDamage = false
     antiDetectEnabled = false
+    noClipEnabled = false
     locationESPEnabled = false
 
     pcall(function() Workspace.CurrentCamera.FieldOfView = 70 end)
@@ -994,7 +1046,7 @@ trackConnection(RunService.Heartbeat:Connect(function()
         end)
     end
 
-    -- AntiDetect: block server position corrections
+    -- AntiDetect: block server position corrections (threshold: 8 studs)
     if antiDetectEnabled then
         pcall(function()
             local hrp = LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("HumanoidRootPart")
@@ -1005,11 +1057,26 @@ trackConnection(RunService.Heartbeat:Connect(function()
                     Vector3.new(lastSafePosition.X, 0, lastSafePosition.Z)
                 ).Magnitude
 
-                -- If teleported > 35 studs horizontally in one frame = server correction
-                if horizontalDist > 35 and (tick() - antiDetectStartTime) > 3 then
+                -- Server correction = sudden jump > 8 studs in one frame
+                -- (wall thickness is 2-5 studs, server sends you further)
+                if horizontalDist > 8 and (tick() - antiDetectStartTime) > 2 then
                     hrp.CFrame = CFrame.new(lastSafePosition)
                 else
                     lastSafePosition = current
+                end
+            end
+        end)
+    end
+
+    -- NoClip: keep character parts non-collidable every frame
+    if noClipEnabled then
+        pcall(function()
+            local char = LocalPlayer.Character
+            if char then
+                for _, part in pairs(char:GetDescendants()) do
+                    if part:IsA("BasePart") then
+                        part.CanCollide = false
+                    end
                 end
             end
         end)
