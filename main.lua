@@ -817,9 +817,11 @@ end, 2)
 
 -- 2b. NoClip (walk through everything — character parts CanCollide=false)
 local noClipEnabled = false
+local lastExploitOffTime = 0 -- tracks when exploits were last turned off
 CreateToggle(exploitsTab, "👻 NoClip (walk through)", function(state)
     noClipEnabled = state
     if not state then
+        lastExploitOffTime = tick()
         -- Restore collision
         pcall(function()
             for _, part in pairs(LocalPlayer.Character:GetDescendants()) do
@@ -874,27 +876,60 @@ end, 7)
 local wallsRemoved = false
 local savedWallParts = {} -- stores references to toggled parts
 
+-- Helper: apply wall removal (called on toggle + after respawn)
+local function applyRemoveWalls()
+    savedWallParts = {}
+    pcall(function()
+        for _, wall in pairs(Workspace.Filter.InvisibleWalls:GetDescendants()) do
+            if wall:IsA("BasePart") then
+                table.insert(savedWallParts, wall)
+                wall.CanCollide = false
+                wall.Transparency = 1
+            end
+        end
+    end)
+    -- Disable anti-clip scripts on character
+    pcall(function()
+        for _, script in pairs(LocalPlayer.Character:GetDescendants()) do
+            if script:IsA("LocalScript") then
+                local n = script.Name:lower()
+                if n:match("clip") or n:match("bug") or n:match("cheat")
+                or n:match("exploit") or n:match("valid") or n:match("check") then
+                    script.Disabled = true
+                end
+            end
+        end
+    end)
+    pcall(function()
+        for _, s in pairs(LocalPlayer.PlayerScripts:GetDescendants()) do
+            if s:IsA("LocalScript") then
+                local n = s.Name:lower()
+                if n:match("clip") or n:match("bug") or n:match("anticheat")
+                or n:match("exploit") or n:match("valid") then
+                    s.Disabled = true
+                end
+            end
+        end
+    end)
+end
+
+local function restoreWalls()
+    for _, wall in pairs(savedWallParts) do
+        pcall(function()
+            wall.CanCollide = true
+            wall.Transparency = 0
+        end)
+    end
+    savedWallParts = {}
+end
+
 CreateToggle(exploitsTab, "🧱 Remove Walls", function(state)
     wallsRemoved = state
     if state then
-        pcall(function()
-            for _, wall in pairs(Workspace.Filter.InvisibleWalls:GetDescendants()) do
-                if wall:IsA("BasePart") then
-                    table.insert(savedWallParts, wall)
-                    wall.CanCollide = false
-                    wall.Transparency = 1
-                end
-            end
-        end)
+        applyRemoveWalls()
     else
-        -- Restore walls
-        for _, wall in pairs(savedWallParts) do
-            pcall(function()
-                wall.CanCollide = true
-                wall.Transparency = 0
-            end)
-        end
-        savedWallParts = {}
+        restoreWalls()
+        lastExploitOffTime = tick()
     end
 end, 8)
 
@@ -1103,8 +1138,9 @@ trackConnection(RunService.Heartbeat:Connect(function()
     end
 
     -- Anti-Death: prevent anti-clip system from killing us
-    -- When NoClip or RemoveWalls is active, force health to max every frame
-    if noClipEnabled or wallsRemoved then
+    -- Active during NoClip/RemoveWalls + 30 seconds after turning off
+    local antiDeathActive = noClipEnabled or wallsRemoved or (tick() - lastExploitOffTime) < 30
+    if antiDeathActive then
         pcall(function()
             local humanoid = LocalPlayer.Character and LocalPlayer.Character:FindFirstChildOfClass("Humanoid")
             if humanoid and humanoid.Health > 0 then
@@ -1150,6 +1186,28 @@ watchCameraFOV()
 
 trackConnection(Workspace:GetPropertyChangedSignal("CurrentCamera"):Connect(function()
     watchCameraFOV()
+end))
+
+-- CHARACTER RESPAWN: re-apply active features after death
+trackConnection(LocalPlayer.CharacterAdded:Connect(function(newCharacter)
+    -- Wait for character to fully load
+    task.wait(1.5)
+
+    -- Re-apply Remove Walls if toggle is still on
+    if wallsRemoved then
+        applyRemoveWalls()
+    end
+
+    -- Reset AntiDetect safe position to new spawn point
+    if antiDetectEnabled then
+        pcall(function()
+            local hrp = newCharacter:WaitForChild("HumanoidRootPart", 5)
+            if hrp then
+                lastSafePosition = hrp.Position
+                antiDetectStartTime = tick()
+            end
+        end)
+    end
 end))
 
 -- THROTTLED: InstaOpen, MultiLoot, Info Labels (0.3s)
