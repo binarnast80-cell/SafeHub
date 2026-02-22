@@ -1,5 +1,5 @@
 -- =====================================================
--- 🛡️ SAFE HUB V1.09.2: MATERIAL DESIGN | MOBILE-FIRST
+-- 🛡️ SAFE HUB V1.16.2: MATERIAL DESIGN | MOBILE-FIRST
 -- 🎮 Game: The Rake / Horror Games
 -- 📱 Target: Delta, Arceus X (Android)
 -- =====================================================
@@ -112,7 +112,7 @@ titleLabel.BackgroundTransparency = 1
 titleLabel.Position = UDim2.new(0, 8, 0, 0)
 titleLabel.Size = UDim2.new(0.7, 0, 1, 0)
 titleLabel.Font = Enum.Font.GothamMedium
-titleLabel.Text = "🛡️ V1.09.2"
+titleLabel.Text = "🛡️ V1.16.2"
 titleLabel.TextColor3 = Colors.TextWhite
 titleLabel.TextSize = 9
 titleLabel.TextXAlignment = Enum.TextXAlignment.Left
@@ -905,61 +905,56 @@ CreateButton(exploitsTab, "🚪 Open SafeHouse", function()
     end)
 end, 9)
 
--- 8. Open Tower hatch (lever simulation — fires all possible remotes)
+-- 8. Open Tower hatch (Observation Tower — lever + trapdoor)
 CreateButton(exploitsTab, "🔓 Open Tower", function()
-    -- Try direct remote paths
-    pcall(function() Workspace.Map.Tower.Door.RemoteEvent:FireServer("Door") end)
-    pcall(function() Workspace.Map.WatchTower.Door.RemoteEvent:FireServer("Door") end)
-    pcall(function() Workspace.Map.Tower.Hatch.RemoteEvent:FireServer("Open") end)
-    pcall(function() Workspace.Map.RadioTower.Door.RemoteEvent:FireServer("Door") end)
-    -- Fire ALL remotes, ProximityPrompts, and ClickDetectors in any "tower" object
-    pcall(function()
-        for _, child in pairs(Workspace.Map:GetChildren()) do
-            if child.Name:lower():match("tower") then
-                for _, sub in pairs(child:GetDescendants()) do
+    -- Known paths for Observation Tower / Trapdoor
+    local towerNames = {"ObservationTower", "Observation Tower", "Tower", "WatchTower", "RadioTower"}
+    local actionArgs = {"Door", "Open", "Lever", "Toggle", "Interact", "Close", "TrapDoor"}
+
+    for _, tName in pairs(towerNames) do
+        pcall(function()
+            local tower = Workspace.Map:FindFirstChild(tName)
+            if tower then
+                for _, obj in pairs(tower:GetDescendants()) do
                     pcall(function()
-                        if sub:IsA("RemoteEvent") then
-                            sub:FireServer("Door")
-                            sub:FireServer("Open")
-                            sub:FireServer("Lever")
-                            sub:FireServer("Toggle")
-                            sub:FireServer("Interact")
+                        if obj:IsA("RemoteEvent") then
+                            for _, arg in pairs(actionArgs) do
+                                obj:FireServer(arg)
+                            end
                         end
-                        if sub:IsA("ProximityPrompt") then
-                            fireproximityprompt(sub)
+                        if obj:IsA("ProximityPrompt") then
+                            fireproximityprompt(obj)
                         end
-                        if sub:IsA("ClickDetector") then
-                            fireclickdetector(sub)
+                        if obj:IsA("ClickDetector") then
+                            fireclickdetector(obj)
                         end
                     end)
                 end
             end
-        end
-    end)
-    -- Also search for "lever" or "hatch" anywhere on map
+        end)
+    end
+
+    -- Search entire map for trapdoor/lever/hatch objects
     pcall(function()
         for _, obj in pairs(Workspace.Map:GetDescendants()) do
-            if obj.Name:lower():match("lever") or obj.Name:lower():match("hatch") then
-                pcall(function()
-                    for _, sub in pairs(obj:GetDescendants()) do
-                        if sub:IsA("RemoteEvent") then
-                            sub:FireServer("Lever")
-                            sub:FireServer("Open")
-                            sub:FireServer("Toggle")
-                        end
-                        if sub:IsA("ProximityPrompt") then
-                            fireproximityprompt(sub)
-                        end
-                        if sub:IsA("ClickDetector") then
-                            fireclickdetector(sub)
-                        end
-                    end
-                end)
-                -- If the lever itself has a remote or prompt
+            local n = obj.Name:lower()
+            if n:match("trapdoor") or n:match("trap_door") or n:match("hatch")
+            or n:match("lever") or n:match("emergency") then
                 pcall(function()
                     if obj:IsA("ProximityPrompt") then fireproximityprompt(obj) end
                     if obj:IsA("ClickDetector") then fireclickdetector(obj) end
-                    if obj:IsA("RemoteEvent") then obj:FireServer("Lever") end
+                    -- Fire remotes inside the object
+                    for _, sub in pairs(obj:GetDescendants()) do
+                        pcall(function()
+                            if sub:IsA("RemoteEvent") then
+                                for _, arg in pairs(actionArgs) do
+                                    sub:FireServer(arg)
+                                end
+                            end
+                            if sub:IsA("ProximityPrompt") then fireproximityprompt(sub) end
+                            if sub:IsA("ClickDetector") then fireclickdetector(sub) end
+                        end)
+                    end
                 end)
             end
         end
@@ -1103,6 +1098,17 @@ trackConnection(RunService.Heartbeat:Connect(function()
                         part.CanCollide = false
                     end
                 end
+            end
+        end)
+    end
+
+    -- Anti-Death: prevent anti-clip system from killing us
+    -- When NoClip or RemoveWalls is active, force health to max every frame
+    if noClipEnabled or wallsRemoved then
+        pcall(function()
+            local humanoid = LocalPlayer.Character and LocalPlayer.Character:FindFirstChildOfClass("Humanoid")
+            if humanoid and humanoid.Health > 0 then
+                humanoid.Health = humanoid.MaxHealth
             end
         end)
     end
