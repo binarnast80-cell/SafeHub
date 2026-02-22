@@ -508,21 +508,19 @@ CreateToggle(playerTab, "🛡️ No Fall Damage", function(state)
 end, 3)
 
 -- ============================================================
---    ANTI-CHEAT BYPASS: __namecall HOOK (safe for mobile)
+--    __namecall HOOK: EXACT v3 PATTERN (proven safe)
 -- ============================================================
--- NOTE: __index hook REMOVED — it intercepts ALL property reads
--- on ALL instances, causing catastrophic lag on mobile executors.
--- __namecall only fires on :Method() calls, which is much lighter.
--- Uses local guard (not _G) to avoid detection via getgc/_G scan.
+-- IMPORTANT: Do NOT add extra checks inside this hook!
+-- self:IsA() inside __namecall = recursive namecall = DETECTED.
+-- typeof(self) inside __namecall = timing anomaly = DETECTED.
+-- Only tostring(self) == "FD_Event" is safe (original v3 pattern).
 local _hookInstalled = false
 if not _hookInstalled then
     _hookInstalled = true
     local metatable = getrawmetatable(game)
     local originalNamecall = metatable.__namecall
     setreadonly(metatable, false)
-
     metatable.__namecall = function(self, ...)
-        -- 🛡️ No Fall Damage (identical to working v3)
         if noFallDamage == true then
             local args = {...}
             if tostring(self) == "FD_Event" then
@@ -531,22 +529,8 @@ if not _hookInstalled then
                 return self.FireServer(self, unpack(args))
             end
         end
-
-        -- 📡 Anti-cheat remote filter: silently block reporting remotes
-        if typeof(self) == "Instance" and self:IsA("RemoteEvent") then
-            local remoteName = tostring(self):lower()
-            if remoteName:match("anticheat")
-            or remoteName:match("ac_report")
-            or remoteName:match("cheatdetect")
-            or remoteName:match("violation")
-            or remoteName:match("exploit_log") then
-                return nil -- silently swallow
-            end
-        end
-
         return originalNamecall(self, ...)
     end
-
     setreadonly(metatable, true)
 end
 
