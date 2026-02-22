@@ -721,20 +721,6 @@ CreateToggle(visualsTab, "📍 Location Names", function(state)
             textLabel.TextStrokeTransparency = 0.4
             textLabel.TextStrokeColor3 = Color3.fromRGB(0, 0, 0)
 
-            -- Add power % sub-label for Power Station
-            if location[1] == "Power Station" then
-                local subLabel = Instance.new("TextLabel", billboard)
-                subLabel.Name = "PowerSub"
-                subLabel.Size = UDim2.new(1, 0, 0, 10)
-                subLabel.Position = UDim2.new(0, 0, 1, 0)
-                subLabel.BackgroundTransparency = 1
-                subLabel.TextColor3 = Color3.fromRGB(100, 255, 100)
-                subLabel.Text = "⚡ ..."
-                subLabel.TextSize = 7
-                subLabel.Font = Enum.Font.Gotham
-                subLabel.TextStrokeTransparency = 0.5
-                subLabel.TextStrokeColor3 = Color3.fromRGB(0, 0, 0)
-            end
 
             table.insert(locationParts, part)
             table.insert(allHighlights, part)
@@ -947,7 +933,6 @@ CreateSeparator(exploitsTab, 12)
 local rakeTargetLabel = CreateInfoLabel(exploitsTab, "🎯 Target: ...", 13)
 local timerLabel = CreateInfoLabel(exploitsTab, "⏰ Timer: ...", 14)
 local bloodHourLabel = CreateInfoLabel(exploitsTab, "🩸 Blood Hour: No", 15)
-local powerLabel = CreateInfoLabel(exploitsTab, "⚡ Power: ...", 16)
 
 CreateSeparator(exploitsTab, 17)
 
@@ -1095,18 +1080,6 @@ trackConnection(RunService.Heartbeat:Connect(function()
                 end
             end
         end)
-        -- Auto-stop at 1000
-        pcall(function()
-            local station = Workspace.Map.PowerStation
-            if station then
-                for _, v in pairs(station:GetDescendants()) do
-                    if (v:IsA("NumberValue") or v:IsA("IntValue")) and v.Value >= 1000 then
-                        fixPowerActive = false
-                        break
-                    end
-                end
-            end
-        end)
     end
 end))
 
@@ -1240,53 +1213,6 @@ trackConnection(RunService.Heartbeat:Connect(function(deltaTime)
             end
         end
     end)
-
-    -- Power Station progress
-    pcall(function()
-        local station = Workspace.Map:FindFirstChild("PowerStation")
-        if station then
-            for _, v in pairs(station:GetDescendants()) do
-                if v:IsA("NumberValue") or v:IsA("IntValue") then
-                    local val = math.floor(v.Value)
-                    local pct = math.floor((val / 1000) * 100)
-                    powerLabel.Text = "  ⚡ Power: " .. val .. "/1000 (" .. pct .. "%)"
-                    break
-                end
-            end
-        end
-    end)
-
-    -- Update power % on map marker (Location ESP)
-    if locationESPEnabled then
-        pcall(function()
-            for _, part in pairs(locationParts) do
-                local bb = part:FindFirstChildOfClass("BillboardGui")
-                if bb then
-                    local subLabel = bb:FindFirstChild("PowerSub")
-                    if subLabel then
-                        local station = Workspace.Map:FindFirstChild("PowerStation")
-                        if station then
-                            for _, v in pairs(station:GetDescendants()) do
-                                if v:IsA("NumberValue") or v:IsA("IntValue") then
-                                    local val = math.floor(v.Value)
-                                    local pct = math.floor((val / 1000) * 100)
-                                    subLabel.Text = "⚡ " .. val .. "/1000"
-                                    if pct >= 100 then
-                                        subLabel.TextColor3 = Color3.fromRGB(0, 255, 0)
-                                    elseif pct > 0 then
-                                        subLabel.TextColor3 = Color3.fromRGB(255, 200, 50)
-                                    else
-                                        subLabel.TextColor3 = Color3.fromRGB(255, 80, 80)
-                                    end
-                                    break
-                                end
-                            end
-                        end
-                    end
-                end
-            end
-        end)
-    end
 end))
 
 -- ESP scan loop (1.2s)
