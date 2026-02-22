@@ -269,7 +269,7 @@ local function CreateToggle(parent, text, callback, layoutOrder)
     label.Font = Enum.Font.Gotham
     label.Text = text
     label.TextColor3 = Colors.TextWhite
-    label.TextSize = 7
+    label.TextSize = 8
     label.TextXAlignment = Enum.TextXAlignment.Left
     label.TextTruncate = Enum.TextTruncate.AtEnd
 
@@ -321,7 +321,7 @@ local function CreateButton(parent, text, callback, layoutOrder)
     button.Font = Enum.Font.GothamMedium
     button.Text = text
     button.TextColor3 = Colors.TextWhite
-    button.TextSize = 7
+    button.TextSize = 8
     button.AutoButtonColor = false
     button.BorderSizePixel = 0
     button.LayoutOrder = layoutOrder or 0
@@ -378,7 +378,7 @@ local function CreateStepper(parent, text, minVal, maxVal, step, default, callba
     label.Font = Enum.Font.Gotham
     label.Text = text
     label.TextColor3 = Colors.TextWhite
-    label.TextSize = 7
+    label.TextSize = 8
     label.TextXAlignment = Enum.TextXAlignment.Left
 
     local currentValue = default
@@ -390,7 +390,7 @@ local function CreateStepper(parent, text, minVal, maxVal, step, default, callba
     valueLabel.Font = Enum.Font.GothamMedium
     valueLabel.Text = tostring(currentValue)
     valueLabel.TextColor3 = Colors.Accent
-    valueLabel.TextSize = 7
+    valueLabel.TextSize = 8
 
     local function makeStepButton(buttonText, xPosition, delta)
         local stepBtn = Instance.new("TextButton", frame)
@@ -934,59 +934,6 @@ CreateButton(exploitsTab, "🚪 Open SafeHouse", function()
     end)
 end, 9)
 
--- 8. Open Tower hatch {Beta} — targets Trap Door specifically
-CreateButton(exploitsTab, "🔓 Open Tower {Beta}", function()
-    local actionArgs = {"Door", "Open", "Lever", "Toggle", "Interact", "TrapDoor", "EmergencyRelease", "Emergency Release"}
-
-    -- Search entire map for Trap Door / TrapDoor / trap objects
-    pcall(function()
-        for _, obj in pairs(Workspace.Map:GetDescendants()) do
-            local n = obj.Name:lower()
-            if n:match("trap") or n:match("hatch") or n:match("emergency") or n:match("release") then
-                pcall(function()
-                    -- Fire ProximityPrompts (set HoldDuration=0 for instant)
-                    if obj:IsA("ProximityPrompt") then
-                        obj.HoldDuration = 0
-                        fireproximityprompt(obj)
-                    end
-                    if obj:IsA("ClickDetector") then
-                        fireclickdetector(obj)
-                    end
-                    if obj:IsA("RemoteEvent") then
-                        for _, arg in pairs(actionArgs) do
-                            obj:FireServer(arg)
-                        end
-                    end
-                    -- Also check children of matching objects
-                    for _, sub in pairs(obj:GetDescendants()) do
-                        pcall(function()
-                            if sub:IsA("ProximityPrompt") then
-                                sub.HoldDuration = 0
-                                fireproximityprompt(sub)
-                            end
-                            if sub:IsA("ClickDetector") then fireclickdetector(sub) end
-                            if sub:IsA("RemoteEvent") then
-                                for _, arg in pairs(actionArgs) do
-                                    sub:FireServer(arg)
-                                end
-                            end
-                        end)
-                    end
-                end)
-            end
-        end
-    end)
-end, 10)
-
--- 6. TP to Player (gradual movement toward nearest player)
-local tpToPlayerEnabled = false
-local tpTarget = nil
-CreateToggle(exploitsTab, "📡 TP to Player", function(state)
-    tpToPlayerEnabled = state
-    if not state then
-        tpTarget = nil
-    end
-end, 10.5)
 
 -- 9. Fix Power (toggle — fires every frame in Heartbeat for continuous hold)
 local fixPowerActive = false
@@ -1031,8 +978,6 @@ CreateButton(exploitsTab, "🗑️ Unload", function()
     noClipEnabled = false
     locationESPEnabled = false
     fixPowerActive = false
-    tpToPlayerEnabled = false
-    tpTarget = nil
 
     pcall(function() Workspace.CurrentCamera.FieldOfView = 70 end)
     pcall(function() LocalPlayer.CameraMode = Enum.CameraMode.LockFirstPerson end)
@@ -1152,65 +1097,12 @@ trackConnection(RunService.Heartbeat:Connect(function()
         end)
         -- Auto-stop at 1000
         pcall(function()
-            local folder = Workspace.Map.PowerStation:FindFirstChild("StationFolder")
-            if folder then
-                for _, v in pairs(folder:GetChildren()) do
+            local station = Workspace.Map.PowerStation
+            if station then
+                for _, v in pairs(station:GetDescendants()) do
                     if (v:IsA("NumberValue") or v:IsA("IntValue")) and v.Value >= 1000 then
                         fixPowerActive = false
-                    end
-                end
-            end
-        end)
-    end
-    -- TP to Player: gradual movement toward nearest player
-    if tpToPlayerEnabled then
-        pcall(function()
-            local myHRP = LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("HumanoidRootPart")
-            if not myHRP then return end
-
-            -- Find/validate target
-            if tpTarget then
-                -- Check target still valid
-                local targetChar = tpTarget.Character
-                local targetHRP = targetChar and targetChar:FindFirstChild("HumanoidRootPart")
-                if not targetHRP then
-                    tpTarget = nil -- target died/left, find new
-                end
-            end
-
-            if not tpTarget then
-                -- Find nearest player
-                local nearest = nil
-                local nearestDist = math.huge
-                for _, player in pairs(Players:GetPlayers()) do
-                    if player ~= LocalPlayer and player.Character then
-                        local hrp = player.Character:FindFirstChild("HumanoidRootPart")
-                        if hrp then
-                            local dist = (hrp.Position - myHRP.Position).Magnitude
-                            if dist < nearestDist then
-                                nearest = player
-                                nearestDist = dist
-                            end
-                        end
-                    end
-                end
-                tpTarget = nearest
-            end
-
-            -- Move toward target
-            if tpTarget and tpTarget.Character then
-                local targetHRP = tpTarget.Character:FindFirstChild("HumanoidRootPart")
-                if targetHRP then
-                    local dist = (targetHRP.Position - myHRP.Position).Magnitude
-                    if dist < 5 then
-                        -- Arrived, stop
-                        tpToPlayerEnabled = false
-                        tpTarget = nil
-                    else
-                        -- Gradual move: ~40 studs/sec
-                        local speed = 40
-                        local alpha = math.min(speed * deltaTime / dist, 0.5)
-                        myHRP.CFrame = myHRP.CFrame:Lerp(targetHRP.CFrame, alpha)
+                        break
                     end
                 end
             end
@@ -1353,24 +1245,12 @@ trackConnection(RunService.Heartbeat:Connect(function(deltaTime)
     pcall(function()
         local station = Workspace.Map:FindFirstChild("PowerStation")
         if station then
-            local folder = station:FindFirstChild("StationFolder")
-            if folder then
-                local progress = folder:FindFirstChild("Progress") or folder:FindFirstChild("PowerProgress")
-                    or folder:FindFirstChild("Value") or folder:FindFirstChild("Charge")
-                if progress and progress:IsA("ValueBase") then
-                    local val = math.floor(progress.Value)
+            for _, v in pairs(station:GetDescendants()) do
+                if v:IsA("NumberValue") or v:IsA("IntValue") then
+                    local val = math.floor(v.Value)
                     local pct = math.floor((val / 1000) * 100)
                     powerLabel.Text = "  ⚡ Power: " .. val .. "/1000 (" .. pct .. "%)"
-                else
-                    -- Try to find any NumberValue in StationFolder
-                    for _, v in pairs(folder:GetChildren()) do
-                        if v:IsA("NumberValue") or v:IsA("IntValue") then
-                            local val = math.floor(v.Value)
-                            local pct = math.floor((val / 1000) * 100)
-                            powerLabel.Text = "  ⚡ Power: " .. val .. "/1000 (" .. pct .. "%)"
-                            break
-                        end
-                    end
+                    break
                 end
             end
         end
@@ -1386,22 +1266,19 @@ trackConnection(RunService.Heartbeat:Connect(function(deltaTime)
                     if subLabel then
                         local station = Workspace.Map:FindFirstChild("PowerStation")
                         if station then
-                            local folder = station:FindFirstChild("StationFolder")
-                            if folder then
-                                for _, v in pairs(folder:GetChildren()) do
-                                    if v:IsA("NumberValue") or v:IsA("IntValue") then
-                                        local val = math.floor(v.Value)
-                                        local pct = math.floor((val / 1000) * 100)
-                                        subLabel.Text = "⚡ " .. pct .. "%"
-                                        if pct >= 100 then
-                                            subLabel.TextColor3 = Color3.fromRGB(0, 255, 0)
-                                        elseif pct > 0 then
-                                            subLabel.TextColor3 = Color3.fromRGB(255, 200, 50)
-                                        else
-                                            subLabel.TextColor3 = Color3.fromRGB(255, 80, 80)
-                                        end
-                                        break
+                            for _, v in pairs(station:GetDescendants()) do
+                                if v:IsA("NumberValue") or v:IsA("IntValue") then
+                                    local val = math.floor(v.Value)
+                                    local pct = math.floor((val / 1000) * 100)
+                                    subLabel.Text = "⚡ " .. val .. "/1000"
+                                    if pct >= 100 then
+                                        subLabel.TextColor3 = Color3.fromRGB(0, 255, 0)
+                                    elseif pct > 0 then
+                                        subLabel.TextColor3 = Color3.fromRGB(255, 200, 50)
+                                    else
+                                        subLabel.TextColor3 = Color3.fromRGB(255, 80, 80)
                                     end
+                                    break
                                 end
                             end
                         end
