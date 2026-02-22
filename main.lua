@@ -1176,19 +1176,6 @@ trackConnection(RunService.Heartbeat:Connect(function()
             end
         end)
     end
-
-    -- God Mode: infinite health when exploit mode active
-    -- Uses math.huge so damage is negligible (no heal loop)
-    local antiDeathActive = noClipEnabled or wallsRemoved or (tick() - lastExploitOffTime) < 30
-    if antiDeathActive then
-        pcall(function()
-            local humanoid = LocalPlayer.Character and LocalPlayer.Character:FindFirstChildOfClass("Humanoid")
-            if humanoid then
-                humanoid.MaxHealth = math.huge
-                humanoid.Health = math.huge
-            end
-        end)
-    end
 end))
 
 -- REACTIVE: instant response to game property changes
