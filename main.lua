@@ -507,13 +507,17 @@ CreateToggle(playerTab, "🛡️ No Fall Damage", function(state)
     noFallDamage = state
 end, 3)
 
+-- Forward declarations for exploit state (used by __namecall hook below)
+-- Actual toggles/values set later in EXPLOITS TAB
+local wallsRemoved = false
+local noClipEnabled = false
+local lastExploitOffTime = 0
+
 -- ============================================================
---    __namecall HOOK: EXACT v3 PATTERN (proven safe)
+--    __namecall HOOK: v3 PATTERN + ANTI-CHEAT REMOTE BLOCKER
 -- ============================================================
--- IMPORTANT: Do NOT add extra checks inside this hook!
--- self:IsA() inside __namecall = recursive namecall = DETECTED.
--- typeof(self) inside __namecall = timing anomaly = DETECTED.
--- Only tostring(self) == "FD_Event" is safe (original v3 pattern).
+-- SAFE CHECKS ONLY: tostring(self) + string operations.
+-- NEVER use self:IsA() or typeof(self) = DETECTION.
 local _hookInstalled = false
 if not _hookInstalled then
     _hookInstalled = true
@@ -521,6 +525,7 @@ if not _hookInstalled then
     local originalNamecall = metatable.__namecall
     setreadonly(metatable, false)
     metatable.__namecall = function(self, ...)
+        -- No Fall Damage (proven safe v3 pattern)
         if noFallDamage == true then
             local args = {...}
             if tostring(self) == "FD_Event" then
@@ -529,6 +534,35 @@ if not _hookInstalled then
                 return self.FireServer(self, unpack(args))
             end
         end
+
+        -- Anti-cheat remote blocker: block violation reports to server
+        -- Active when walls removed, noclip on, or within 30s cooldown
+        if wallsRemoved or noClipEnabled or (tick() - lastExploitOffTime) < 30 then
+            local remoteName = tostring(self)
+            -- Block remotes with anti-cheat names (safe: only string ops)
+            local rn = remoteName:lower()
+            if rn:match("bug") or rn:match("clip") or rn:match("cheat")
+            or rn:match("exploit") or rn:match("detect") or rn:match("violation")
+            or rn:match("report") or rn:match("anticheat") or rn:match("anti_cheat")
+            or rn:match("kick") or rn:match("flag") or rn:match("warn") then
+                return nil -- silently drop
+            end
+
+            -- Also check string arguments for anti-cheat keywords
+            local args = {...}
+            for i = 1, #args do
+                if type(args[i]) == "string" then
+                    local a = args[i]:lower()
+                    if a:match("bug") or a:match("clip") or a:match("cheat")
+                    or a:match("exploit") or a:match("teleport") or a:match("detect")
+                    or a:match("violation") or a:match("report") or a:match("bugged")
+                    or a:match("kick") or a:match("flag") or a:match("stuck") then
+                        return nil -- silently drop
+                    end
+                end
+            end
+        end
+
         return originalNamecall(self, ...)
     end
     setreadonly(metatable, true)
@@ -816,8 +850,7 @@ CreateToggle(exploitsTab, "🔒 AntiDetect", function(state)
 end, 2)
 
 -- 2b. NoClip (walk through everything — character parts CanCollide=false)
-local noClipEnabled = false
-local lastExploitOffTime = 0 -- tracks when exploits were last turned off
+-- noClipEnabled and lastExploitOffTime forward-declared above __namecall hook
 CreateToggle(exploitsTab, "👻 NoClip (walk through)", function(state)
     noClipEnabled = state
     if not state then
@@ -873,7 +906,7 @@ CreateButton(exploitsTab, "🧲 Bring Scrap", function()
 end, 7)
 
 -- 6. Remove Walls (toggle — ON removes, OFF restores)
-local wallsRemoved = false
+-- wallsRemoved forward-declared above __namecall hook
 local savedWallParts = {} -- stores references to toggled parts
 
 -- Helper: apply wall removal (called on toggle + after respawn)
