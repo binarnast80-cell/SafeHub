@@ -870,48 +870,65 @@ CreateButton(exploitsTab, "🧲 Bring Scrap", function()
     end)
 end, 7)
 
--- 6. Remove Walls + disable anti-clip scripts
-CreateButton(exploitsTab, "🧱 Remove Walls", function()
-    pcall(function()
-        for _, wall in pairs(Workspace.Filter.InvisibleWalls:GetChildren()) do
-            if wall.Name:lower():match("invis") then
+-- 6. Remove Walls (toggle — moves walls to Y=-9999 to prevent overlap detection)
+local wallsRemoved = false
+local savedWallData = {} -- stores {part, CFrame, Size, CanCollide}
+
+CreateToggle(exploitsTab, "🧱 Remove Walls", function(state)
+    wallsRemoved = state
+    if state then
+        -- Save original data and teleport walls far away + shrink
+        pcall(function()
+            for _, wall in pairs(Workspace.Filter.InvisibleWalls:GetDescendants()) do
                 if wall:IsA("BasePart") then
+                    table.insert(savedWallData, {
+                        wall,
+                        wall.CFrame,
+                        wall.Size,
+                        wall.CanCollide
+                    })
+                    wall.CFrame = CFrame.new(0, -9999, 0)
+                    wall.Size = Vector3.new(0.01, 0.01, 0.01)
                     wall.CanCollide = false
                     wall.Transparency = 1
-                else
-                    for _, part in pairs(wall:GetDescendants()) do
-                        if part:IsA("BasePart") then
-                            part.CanCollide = false
-                            part.Transparency = 1
-                        end
+                end
+            end
+        end)
+        -- Disable anti-clip scripts
+        pcall(function()
+            for _, script in pairs(LocalPlayer.Character:GetDescendants()) do
+                if script:IsA("LocalScript") then
+                    local n = script.Name:lower()
+                    if n:match("clip") or n:match("bug") or n:match("cheat")
+                    or n:match("exploit") or n:match("valid") or n:match("check") then
+                        script.Disabled = true
                     end
                 end
             end
-        end
-    end)
-    -- Also try to disable any anti-clip/validation scripts in the game
-    pcall(function()
-        for _, script in pairs(LocalPlayer.Character:GetDescendants()) do
-            if script:IsA("LocalScript") then
-                local n = script.Name:lower()
-                if n:match("clip") or n:match("bug") or n:match("cheat")
-                or n:match("exploit") or n:match("valid") or n:match("check") then
-                    script.Disabled = true
+        end)
+        pcall(function()
+            for _, s in pairs(LocalPlayer.PlayerScripts:GetDescendants()) do
+                if s:IsA("LocalScript") then
+                    local n = s.Name:lower()
+                    if n:match("clip") or n:match("bug") or n:match("anticheat")
+                    or n:match("exploit") or n:match("valid") then
+                        s.Disabled = true
+                    end
                 end
             end
+        end)
+    else
+        -- Restore walls to original positions
+        for _, data in pairs(savedWallData) do
+            pcall(function()
+                data[1].CFrame = data[2]
+                data[1].Size = data[3]
+                data[1].CanCollide = data[4]
+                data[1].Transparency = 0
+            end)
         end
-    end)
-    pcall(function()
-        for _, s in pairs(game:GetService("Players").LocalPlayer.PlayerScripts:GetDescendants()) do
-            if s:IsA("LocalScript") then
-                local n = s.Name:lower()
-                if n:match("clip") or n:match("bug") or n:match("anticheat")
-                or n:match("exploit") or n:match("valid") then
-                    s.Disabled = true
-                end
-            end
-        end
-    end)
+        savedWallData = {}
+    end
 end, 8)
 
 -- 7. Open SafeHouse door (remote only, no teleport)
