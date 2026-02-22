@@ -870,64 +870,31 @@ CreateButton(exploitsTab, "🧲 Bring Scrap", function()
     end)
 end, 7)
 
--- 6. Remove Walls (toggle — moves walls to Y=-9999 to prevent overlap detection)
+-- 6. Remove Walls (toggle — ON removes, OFF restores)
 local wallsRemoved = false
-local savedWallData = {} -- stores {part, CFrame, Size, CanCollide}
+local savedWallParts = {} -- stores references to toggled parts
 
 CreateToggle(exploitsTab, "🧱 Remove Walls", function(state)
     wallsRemoved = state
     if state then
-        -- Save original data and teleport walls far away + shrink
         pcall(function()
             for _, wall in pairs(Workspace.Filter.InvisibleWalls:GetDescendants()) do
                 if wall:IsA("BasePart") then
-                    table.insert(savedWallData, {
-                        wall,
-                        wall.CFrame,
-                        wall.Size,
-                        wall.CanCollide
-                    })
-                    wall.CFrame = CFrame.new(0, -9999, 0)
-                    wall.Size = Vector3.new(0.01, 0.01, 0.01)
+                    table.insert(savedWallParts, wall)
                     wall.CanCollide = false
                     wall.Transparency = 1
                 end
             end
         end)
-        -- Disable anti-clip scripts
-        pcall(function()
-            for _, script in pairs(LocalPlayer.Character:GetDescendants()) do
-                if script:IsA("LocalScript") then
-                    local n = script.Name:lower()
-                    if n:match("clip") or n:match("bug") or n:match("cheat")
-                    or n:match("exploit") or n:match("valid") or n:match("check") then
-                        script.Disabled = true
-                    end
-                end
-            end
-        end)
-        pcall(function()
-            for _, s in pairs(LocalPlayer.PlayerScripts:GetDescendants()) do
-                if s:IsA("LocalScript") then
-                    local n = s.Name:lower()
-                    if n:match("clip") or n:match("bug") or n:match("anticheat")
-                    or n:match("exploit") or n:match("valid") then
-                        s.Disabled = true
-                    end
-                end
-            end
-        end)
     else
-        -- Restore walls to original positions
-        for _, data in pairs(savedWallData) do
+        -- Restore walls
+        for _, wall in pairs(savedWallParts) do
             pcall(function()
-                data[1].CFrame = data[2]
-                data[1].Size = data[3]
-                data[1].CanCollide = data[4]
-                data[1].Transparency = 0
+                wall.CanCollide = true
+                wall.Transparency = 0
             end)
         end
-        savedWallData = {}
+        savedWallParts = {}
     end
 end, 8)
 
@@ -938,21 +905,62 @@ CreateButton(exploitsTab, "🚪 Open SafeHouse", function()
     end)
 end, 9)
 
--- 8. Open Tower hatch (try multiple paths)
+-- 8. Open Tower hatch (lever simulation — fires all possible remotes)
 CreateButton(exploitsTab, "🔓 Open Tower", function()
+    -- Try direct remote paths
     pcall(function() Workspace.Map.Tower.Door.RemoteEvent:FireServer("Door") end)
     pcall(function() Workspace.Map.WatchTower.Door.RemoteEvent:FireServer("Door") end)
     pcall(function() Workspace.Map.Tower.Hatch.RemoteEvent:FireServer("Open") end)
     pcall(function() Workspace.Map.RadioTower.Door.RemoteEvent:FireServer("Door") end)
-    -- Try finding any door in Tower hierarchy
+    -- Fire ALL remotes, ProximityPrompts, and ClickDetectors in any "tower" object
     pcall(function()
         for _, child in pairs(Workspace.Map:GetChildren()) do
             if child.Name:lower():match("tower") then
                 for _, sub in pairs(child:GetDescendants()) do
-                    if sub:IsA("RemoteEvent") then
-                        sub:FireServer("Door")
-                    end
+                    pcall(function()
+                        if sub:IsA("RemoteEvent") then
+                            sub:FireServer("Door")
+                            sub:FireServer("Open")
+                            sub:FireServer("Lever")
+                            sub:FireServer("Toggle")
+                            sub:FireServer("Interact")
+                        end
+                        if sub:IsA("ProximityPrompt") then
+                            fireproximityprompt(sub)
+                        end
+                        if sub:IsA("ClickDetector") then
+                            fireclickdetector(sub)
+                        end
+                    end)
                 end
+            end
+        end
+    end)
+    -- Also search for "lever" or "hatch" anywhere on map
+    pcall(function()
+        for _, obj in pairs(Workspace.Map:GetDescendants()) do
+            if obj.Name:lower():match("lever") or obj.Name:lower():match("hatch") then
+                pcall(function()
+                    for _, sub in pairs(obj:GetDescendants()) do
+                        if sub:IsA("RemoteEvent") then
+                            sub:FireServer("Lever")
+                            sub:FireServer("Open")
+                            sub:FireServer("Toggle")
+                        end
+                        if sub:IsA("ProximityPrompt") then
+                            fireproximityprompt(sub)
+                        end
+                        if sub:IsA("ClickDetector") then
+                            fireclickdetector(sub)
+                        end
+                    end
+                end)
+                -- If the lever itself has a remote or prompt
+                pcall(function()
+                    if obj:IsA("ProximityPrompt") then fireproximityprompt(obj) end
+                    if obj:IsA("ClickDetector") then fireclickdetector(obj) end
+                    if obj:IsA("RemoteEvent") then obj:FireServer("Lever") end
+                end)
             end
         end
     end)
