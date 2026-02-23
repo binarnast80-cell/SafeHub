@@ -1018,9 +1018,8 @@ CreateButton(exploitsTab, "🗼 Open Tower", function()
 end, 10)
 
 
--- 9. Fix Power (exact old-script logic)
+-- 9. Fix Power (simplified: teleport + free movement)
 local fixPowerActive = false
-local fixPowerSavedCFrame = nil
 local POWER_STATION_CFRAME = CFrame.new(-280.808014, 20.3924561, -212.159821, -0.10549771, -1.16743761e-08, -0.994419575, 9.45945828e-08, 1, -2.17754046e-08, 0.994419575, -9.63639621e-08, -0.10549771)
 
 CreateToggle(exploitsTab, "⚡ Fix Power", function(state)
@@ -1032,28 +1031,20 @@ CreateToggle(exploitsTab, "⚡ Fix Power", function(state)
             local hrp = character:FindFirstChild("HumanoidRootPart")
             if not hrp then fixPowerActive = false return end
 
-            -- Save position (exact old-script: lastpos = HRP.CFrame)
-            fixPowerSavedCFrame = hrp.CFrame
-
-            -- Force first-person camera
-            pcall(function()
-                LocalPlayer.CameraMode = Enum.CameraMode.LockFirstPerson
-            end)
-
-            -- Teleport (exact old-script: 1000x loop)
+            -- Teleport to power station (old-script style: 1000x loop)
             wait()
             for i = 1, 1000 do
                 hrp.CFrame = POWER_STATION_CFRAME
             end
-            -- Anchor (exact old-script: wait() then Anchored)
-            wait()
-            hrp.Anchored = true
             wait()
 
-            -- Fire StationStart (exact old-script)
-            Workspace.Map.PowerStation.StationFolder.RemoteEvent:FireServer("StationStart")
+            -- Fire StationStart (one initial fire, like old script)
+            pcall(function()
+                Workspace.Map.PowerStation.StationFolder.RemoteEvent:FireServer("StationStart")
+            end)
 
             -- Monitor loop: check PowerLevel, auto-stop at 1000
+            -- Player is FREE to move around during repair
             while fixPowerActive do
                 local level = nil
                 pcall(function()
@@ -1063,52 +1054,12 @@ CreateToggle(exploitsTab, "⚡ Fix Power", function(state)
                     fixPowerActive = false
                     break
                 end
-                -- Keep firing repair every second
+                -- Re-fire repair with randomized delay (less suspicious)
                 pcall(function()
                     Workspace.Map.PowerStation.StationFolder.RemoteEvent:FireServer("StationStart")
                 end)
-                wait(1)
+                wait(1.5 + math.random() * 1.5) -- 1.5-3s random interval
             end
-
-            -- Done: unanchor
-            hrp.Anchored = false
-            wait()
-            -- Teleport back
-            if fixPowerSavedCFrame then
-                hrp.CFrame = fixPowerSavedCFrame
-                fixPowerSavedCFrame = nil
-            end
-            -- Restore camera
-            pcall(function()
-                if thirdPersonEnabled then
-                    LocalPlayer.CameraMode = Enum.CameraMode.Classic
-                else
-                    LocalPlayer.CameraMode = Enum.CameraMode.LockFirstPerson
-                end
-            end)
-        end)
-    else
-        -- Manual toggle off
-        task.spawn(function()
-            local character = LocalPlayer.Character
-            if character then
-                local hrp = character:FindFirstChild("HumanoidRootPart")
-                if hrp then
-                    hrp.Anchored = false
-                    wait()
-                    if fixPowerSavedCFrame then
-                        hrp.CFrame = fixPowerSavedCFrame
-                        fixPowerSavedCFrame = nil
-                    end
-                end
-            end
-            pcall(function()
-                if thirdPersonEnabled then
-                    LocalPlayer.CameraMode = Enum.CameraMode.Classic
-                else
-                    LocalPlayer.CameraMode = Enum.CameraMode.LockFirstPerson
-                end
-            end)
         end)
     end
 end, 11)
