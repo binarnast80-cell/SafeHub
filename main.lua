@@ -907,13 +907,14 @@ CreateToggle(exploitsTab, "📦 Insta-Open Boxes", function(state)
 end, 4)
 
 -- 4. Multi-Loot (sub-function — DISABLED when InstaOpen is off)
-local multiLootEnabled = false
-local multiLootFrame = CreateToggle(exploitsTab, "📦 Multi-Loot (grab all) {Beta}", function(state)
-    if not instaOpenEnabled then return end
-    multiLootEnabled = state
-end, 5)
-
-multiLootOverlay = CreateDisabledOverlay(multiLootFrame)
+-- [COMMENTED OUT]
+-- local multiLootEnabled = false
+-- local multiLootFrame = CreateToggle(exploitsTab, "📦 Multi-Loot (grab all) {Beta}", function(state)
+--     if not instaOpenEnabled then return end
+--     multiLootEnabled = state
+-- end, 5)
+--
+-- multiLootOverlay = CreateDisabledOverlay(multiLootFrame)
 
 CreateSeparator(exploitsTab, 6)
 
@@ -1018,74 +1019,56 @@ CreateButton(exploitsTab, "🗼 Open Tower", function()
 end, 10)
 
 
--- 9. Fix Power (forced teleport + free movement after lock-in)
-local fixPowerActive = false
-local fixPowerHoldingPosition = false -- true while we're forcing position
+-- 9. Auto Fix Power (main) + TP to Station (sub-function)
+local autoFixPowerActive = false
+local tpToStationActive = false
+local tpToStationOverlay = nil
+local fixPowerHoldConn = nil
 local POWER_STATION_CFRAME = CFrame.new(-280.808014, 20.3924561, -212.159821, -0.10549771, -1.16743761e-08, -0.994419575, 9.45945828e-08, 1, -2.17754046e-08, 0.994419575, -9.63639621e-08, -0.10549771)
 
-CreateToggle(exploitsTab, "⚡ Fix Power", function(state)
-    fixPowerActive = state
+-- Main toggle: Auto Fix Power (fires repair remote, player can move freely)
+CreateToggle(exploitsTab, "⚡ Auto Fix Power", function(state)
+    autoFixPowerActive = state
+    -- When main is turned off, also disable sub-function
+    if not state then
+        tpToStationActive = false
+        -- Stop holding position if active
+        if fixPowerHoldConn then
+            pcall(function() fixPowerHoldConn:Disconnect() end)
+            fixPowerHoldConn = nil
+        end
+    end
+    -- Show/hide DISABLED overlay on sub-function
+    if tpToStationOverlay then
+        tpToStationOverlay.Visible = not state
+    end
+
     if state then
         task.spawn(function()
-            local character = LocalPlayer.Character
-            if not character then fixPowerActive = false return end
-            local hrp = character:FindFirstChild("HumanoidRootPart")
-            if not hrp then fixPowerActive = false return end
-
-            -- Temporarily disable AntiDetect so it doesn't fight our teleport
-            local wasAntiDetect = antiDetectEnabled
-            if wasAntiDetect then
-                antiDetectEnabled = false
-            end
-
-            -- Phase 1: Force-hold position at power station for 3 seconds
-            -- This fights server corrections by overriding CFrame EVERY FRAME
-            fixPowerHoldingPosition = true
-            local holdConn
-            holdConn = RunService.Heartbeat:Connect(function()
-                if fixPowerHoldingPosition then
-                    pcall(function()
-                        hrp.CFrame = POWER_STATION_CFRAME
-                    end)
-                end
-            end)
-
-            -- Initial burst teleport
-            for i = 1, 1000 do
-                hrp.CFrame = POWER_STATION_CFRAME
-            end
-
-            -- Hold for 3 seconds (server needs time to accept new position)
-            wait(3)
-
-            -- Stop holding — player is now FREE to move
-            fixPowerHoldingPosition = false
-            pcall(function() holdConn:Disconnect() end)
-
-            -- Update AntiDetect safe position so it doesn't revert us
-            if wasAntiDetect then
-                lastSafePosition = hrp.Position
-                antiDetectStartTime = tick()
-                antiDetectEnabled = true
-            end
-
-            -- Fire StationStart
+            -- Fire initial StationStart
             pcall(function()
                 Workspace.Map.PowerStation.StationFolder.RemoteEvent:FireServer("StationStart")
             end)
 
-            -- Monitor loop: check PowerLevel, auto-stop at 1000
-            -- Player is FREE to move around during repair
-            while fixPowerActive do
+            -- Monitor loop: keep firing + check PowerLevel, auto-stop at 1000
+            while autoFixPowerActive do
                 local level = nil
                 pcall(function()
                     level = ReplicatedStorage.PowerValues.PowerLevel.Value
                 end)
                 if level and level >= 1000 then
-                    fixPowerActive = false
+                    autoFixPowerActive = false
+                    -- Also disable sub-function
+                    tpToStationActive = false
+                    if fixPowerHoldConn then
+                        pcall(function() fixPowerHoldConn:Disconnect() end)
+                        fixPowerHoldConn = nil
+                    end
+                    if tpToStationOverlay then
+                        tpToStationOverlay.Visible = true
+                    end
                     break
                 end
-                -- Re-fire repair with randomized delay
                 pcall(function()
                     Workspace.Map.PowerStation.StationFolder.RemoteEvent:FireServer("StationStart")
                 end)
@@ -1094,6 +1077,73 @@ CreateToggle(exploitsTab, "⚡ Fix Power", function(state)
         end)
     end
 end, 11)
+
+-- Sub-toggle: TP to Station (teleport + hold at power station)
+local tpToStationFrame = CreateToggle(exploitsTab, "📍 TP to Station", function(state)
+    -- Block if main is not active
+    if not autoFixPowerActive then return end
+    tpToStationActive = state
+
+    if state then
+        task.spawn(function()
+            local character = LocalPlayer.Character
+            if not character then tpToStationActive = false return end
+            local hrp = character:FindFirstChild("HumanoidRootPart")
+            if not hrp then tpToStationActive = false return end
+
+            -- Temporarily disable AntiDetect
+            local wasAntiDetect = antiDetectEnabled
+            if wasAntiDetect then
+                antiDetectEnabled = false
+            end
+
+            -- Initial burst teleport
+            for i = 1, 1000 do
+                hrp.CFrame = POWER_STATION_CFRAME
+            end
+
+            -- Heartbeat hold: force CFrame every frame while active
+            fixPowerHoldConn = RunService.Heartbeat:Connect(function()
+                if tpToStationActive then
+                    pcall(function()
+                        local c = LocalPlayer.Character
+                        if c then
+                            local h = c:FindFirstChild("HumanoidRootPart")
+                            if h then h.CFrame = POWER_STATION_CFRAME end
+                        end
+                    end)
+                end
+            end)
+
+            -- Restore AntiDetect with new safe position
+            if wasAntiDetect then
+                task.delay(1, function()
+                    lastSafePosition = POWER_STATION_CFRAME.Position
+                    antiDetectStartTime = tick()
+                    antiDetectEnabled = true
+                end)
+            end
+        end)
+    else
+        -- Stop holding
+        if fixPowerHoldConn then
+            pcall(function() fixPowerHoldConn:Disconnect() end)
+            fixPowerHoldConn = nil
+        end
+        -- Update AntiDetect safe position to current pos
+        if antiDetectEnabled then
+            pcall(function()
+                local hrp = LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("HumanoidRootPart")
+                if hrp then
+                    lastSafePosition = hrp.Position
+                    antiDetectStartTime = tick()
+                end
+            end)
+        end
+    end
+end, 11)
+
+tpToStationOverlay = CreateDisabledOverlay(tpToStationFrame)
 
 CreateSeparator(exploitsTab, 12)
 
@@ -1139,12 +1189,16 @@ CreateButton(exploitsTab, "🗑️ Unload", function()
     speedEnabled = false
     fovEnabled = false
     instaOpenEnabled = false
-    multiLootEnabled = false
     noFallDamage = false
     antiDetectEnabled = false
     noClipEnabled = false
     locationESPEnabled = false
-    fixPowerActive = false
+    autoFixPowerActive = false
+    tpToStationActive = false
+    if fixPowerHoldConn then
+        pcall(function() fixPowerHoldConn:Disconnect() end)
+        fixPowerHoldConn = nil
+    end
 
     pcall(function() Workspace.CurrentCamera.FieldOfView = 70 end)
     pcall(function() LocalPlayer.CameraMode = Enum.CameraMode.LockFirstPerson end)
@@ -1333,26 +1387,27 @@ trackConnection(RunService.Heartbeat:Connect(function(deltaTime)
     end
 
     -- Multi-Loot: continuous grab when enabled
-    if multiLootEnabled and instaOpenEnabled then
-        pcall(function()
-            ReplicatedStorage.SupplyClientEvent:FireServer("Open", true)
-        end)
-        pcall(function()
-            for _, box in pairs(Workspace.Debris.SupplyCrates:GetChildren()) do
-                if box.Name == "Box" then
-                    for _, sub in pairs(box:GetDescendants()) do
-                        if sub:IsA("ProximityPrompt") then
-                            sub.HoldDuration = 0
-                            fireproximityprompt(sub)
-                        end
-                        if sub:IsA("ClickDetector") then
-                            fireclickdetector(sub)
-                        end
-                    end
-                end
-            end
-        end)
-    end
+    -- [COMMENTED OUT]
+    -- if multiLootEnabled and instaOpenEnabled then
+    --     pcall(function()
+    --         ReplicatedStorage.SupplyClientEvent:FireServer("Open", true)
+    --     end)
+    --     pcall(function()
+    --         for _, box in pairs(Workspace.Debris.SupplyCrates:GetChildren()) do
+    --             if box.Name == "Box" then
+    --                 for _, sub in pairs(box:GetDescendants()) do
+    --                     if sub:IsA("ProximityPrompt") then
+    --                         sub.HoldDuration = 0
+    --                         fireproximityprompt(sub)
+    --                     end
+    --                     if sub:IsA("ClickDetector") then
+    --                         fireclickdetector(sub)
+    --                     end
+    --                 end
+    --             end
+    --         end
+    --     end)
+    -- end
 
     -- Info labels update
     pcall(function()
