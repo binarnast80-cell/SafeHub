@@ -920,6 +920,38 @@ CreateButton(exploitsTab, "🚪 Open SafeHouse", function()
     end)
 end, 9)
 
+-- 8. Open ObservationTower door
+CreateButton(exploitsTab, "🗼 Open Tower", function()
+    pcall(function()
+        local tower = Workspace.Map:FindFirstChild("ObservationTower")
+        if tower then
+            -- Fire all ProximityPrompts on the tower (door prompts)
+            for _, desc in pairs(tower:GetDescendants()) do
+                if desc:IsA("ProximityPrompt") then
+                    desc.HoldDuration = 0
+                    desc.MaxActivationDistance = 9e9
+                    desc.RequiresLineOfSight = false
+                    fireproximityprompt(desc)
+                end
+            end
+            -- Fire all RemoteEvents on the tower (same pattern as SafeHouse door)
+            for _, desc in pairs(tower:GetDescendants()) do
+                if desc:IsA("RemoteEvent") then
+                    pcall(function() desc:FireServer("Door") end)
+                    pcall(function() desc:FireServer("Open") end)
+                    pcall(function() desc:FireServer() end)
+                end
+            end
+            -- Also fire ClickDetectors
+            for _, desc in pairs(tower:GetDescendants()) do
+                if desc:IsA("ClickDetector") then
+                    fireclickdetector(desc)
+                end
+            end
+        end
+    end)
+end, 10)
+
 
 -- 9. Fix Power (toggle — fires every frame in Heartbeat for continuous hold)
 local fixPowerActive = false
@@ -937,142 +969,15 @@ local powerLabel = CreateInfoLabel(exploitsTab, "⚡ Power: Scanning...", 16)
 
 
 
--- Power station value scanner — searches ALL possible locations
-local _powerFoundPath = nil  -- cached ValueBase obj
-local _powerGuiLabel = nil   -- cached TextLabel from PowerGui
-local function getPowerDisplay()
-    -- Fast path: if we already found a value object, just read it
-    if _powerFoundPath then
-        local ok, val = pcall(function() return _powerFoundPath.Value end)
-        if ok and val then return tostring(math.floor(val)), _powerFoundPath.Name end
-        _powerFoundPath = nil
-    end
-    -- Fast path: if we found a GUI label, read its text
-    if _powerGuiLabel then
-        local ok, txt = pcall(function() return _powerGuiLabel.Text end)
-        if ok and txt and txt ~= "" then return txt, "PowerGui" end
-        _powerGuiLabel = nil
-    end
-
-    local results = {}
-
-    -- 1. PRIORITY: Scan PlayerGui.PowerGui (game has built-in power display!)
-    pcall(function()
-        local pg = LocalPlayer:FindFirstChild("PlayerGui")
-        if pg then
-            local powerGui = pg:FindFirstChild("PowerGui")
-            if powerGui then
-                for _, v in pairs(powerGui:GetDescendants()) do
-                    if v:IsA("TextLabel") or v:IsA("TextButton") then
-                        local txt = v.Text or ""
-                        if txt ~= "" then
-                            table.insert(results, {name = "PowerGui." .. v.Name, val = txt, guiLabel = v})
-                        end
-                    end
-                    if v:IsA("ValueBase") then
-                        table.insert(results, {obj = v, name = "PowerGui." .. v.Name, val = tostring(v.Value)})
-                    end
-                end
-            end
-            -- Also scan for any GUI with "power" in name
-            for _, gui in pairs(pg:GetChildren()) do
-                if gui.Name:lower():match("power") and gui.Name ~= "PowerGui" then
-                    for _, v in pairs(gui:GetDescendants()) do
-                        if v:IsA("TextLabel") then
-                            local txt = v.Text or ""
-                            if txt ~= "" then
-                                table.insert(results, {name = gui.Name .. "." .. v.Name, val = txt, guiLabel = v})
-                            end
-                        end
-                    end
-                end
-            end
-        end
+-- Power display — direct read from ReplicatedStorage.PowerValues.PowerLevel
+local function getPowerLevel()
+    local ok, val = pcall(function()
+        return ReplicatedStorage.PowerValues.PowerLevel.Value
     end)
-
-    -- 2. Scan PowerStation for ALL ValueBase descendants
-    pcall(function()
-        local station = Workspace.Map:FindFirstChild("PowerStation")
-        if station then
-            for _, v in pairs(station:GetDescendants()) do
-                if v:IsA("ValueBase") then
-                    table.insert(results, {obj = v, name = v.Name, val = tostring(v.Value)})
-                end
-            end
-            -- Attributes on all parts
-            for _, v in pairs(station:GetDescendants()) do
-                pcall(function()
-                    for attrName, attrVal in pairs(v:GetAttributes()) do
-                        if type(attrVal) == "number" then
-                            table.insert(results, {name = v.Name .. "." .. attrName, val = tostring(attrVal)})
-                        end
-                    end
-                end)
-            end
-            -- Attributes on station itself
-            pcall(function()
-                for attrName, attrVal in pairs(station:GetAttributes()) do
-                    if type(attrVal) == "number" then
-                        table.insert(results, {name = "Station." .. attrName, val = tostring(attrVal)})
-                    end
-                end
-            end)
-        end
-    end)
-
-    -- 3. Scan ReplicatedStorage for power-related values
-    pcall(function()
-        for _, v in pairs(ReplicatedStorage:GetDescendants()) do
-            if v:IsA("ValueBase") then
-                local n = v.Name:lower()
-                if n:match("power") or n:match("energy") or n:match("station") or n:match("charge") then
-                    table.insert(results, {obj = v, name = v.Name, val = tostring(v.Value)})
-                end
-            end
-        end
-    end)
-
-    -- 4. Scan ALL PlayerGui TextLabels with number text (power may be a raw number)
-    pcall(function()
-        local pg = LocalPlayer:FindFirstChild("PlayerGui")
-        if pg then
-            for _, v in pairs(pg:GetDescendants()) do
-                if v:IsA("TextLabel") then
-                    local n = v.Name:lower()
-                    if n:match("power") or n:match("energy") or n:match("charge") or n:match("progress") then
-                        table.insert(results, {name = "GUI." .. v.Name, val = v.Text or "", guiLabel = v})
-                    end
-                end
-            end
-        end
-    end)
-
-    if #results == 0 then
-        return nil, nil
+    if ok and val then
+        return math.floor(val)
     end
-
-    -- Build diagnostic string + try to auto-select
-    local parts = {}
-    for _, r in pairs(results) do
-        table.insert(parts, r.name .. "=" .. r.val)
-        -- Auto-select ValueBase
-        if r.obj and not _powerFoundPath then
-            pcall(function()
-                if r.obj:IsA("NumberValue") or r.obj:IsA("IntValue") then
-                    local num = tonumber(r.obj.Value)
-                    if num and num >= 0 and num <= 1000 then
-                        _powerFoundPath = r.obj
-                    end
-                end
-            end)
-        end
-        -- Auto-select GUI label
-        if r.guiLabel and not _powerGuiLabel then
-            _powerGuiLabel = r.guiLabel
-        end
-    end
-
-    return table.concat(parts, " | "), "SCAN"
+    return nil
 end
 
 CreateSeparator(exploitsTab, 17)
@@ -1357,15 +1262,13 @@ trackConnection(RunService.Heartbeat:Connect(function(deltaTime)
         end
     end)
 
-    -- Power level display (diagnostic scan)
+    -- Power level display (direct read)
     pcall(function()
-        local display, source = getPowerDisplay()
-        if display and source == "SCAN" then
-            powerLabel.Text = "  ⚡ " .. display
-        elseif display then
-            powerLabel.Text = "  ⚡ Power: " .. display
+        local level = getPowerLevel()
+        if level then
+            powerLabel.Text = "  ⚡ Power: " .. tostring(level) .. " / 1000"
         else
-            powerLabel.Text = "  ⚡ Power: no values found"
+            powerLabel.Text = "  ⚡ Power: N/A"
         end
     end)
 end))
