@@ -822,7 +822,7 @@ end, 8)
 
 -- 1. KillAura
 local killAuraEnabled = false
-CreateToggle(exploitsTab, "⚔️ KillAura (200m)", function(state)
+CreateToggle(exploitsTab, "⚔️ KillAura", function(state)
     killAuraEnabled = state
 end, 1)
 
@@ -834,7 +834,7 @@ task.spawn(function()
                 local character = LocalPlayer.Character
                 if rake and character and character:FindFirstChild("StunStick") and character:FindFirstChild("HumanoidRootPart") then
                     local rakeHRP = rake:FindFirstChild("HumanoidRootPart")
-                    if rakeHRP and (rakeHRP.Position - character.HumanoidRootPart.Position).Magnitude < 200 then
+                    if rakeHRP and (rakeHRP.Position - character.HumanoidRootPart.Position).Magnitude < 400 then
                         character.StunStick.Event:FireServer("S")
                         task.wait(0.01)
                         character.StunStick.Event:FireServer("H", rakeHRP)
@@ -938,16 +938,36 @@ CreateButton(exploitsTab, "🚪 Open SafeHouse", function()
     end)
 end, 9)
 
--- 8. Open ObservationTower door (needs correct RemoteEvent — see note)
--- TODO: User needs to find RemoteEvent inside ObservationTower via Dex
+-- 8. Open ObservationTower door (BindableEvent + DoorLever prompts)
 CreateButton(exploitsTab, "🗼 Open Tower", function()
     pcall(function()
         local tower = Workspace.Map:FindFirstChild("ObservationTower")
         if not tower then return end
-        -- Try to find and fire door-specific RemoteEvent
-        for _, desc in pairs(tower:GetDescendants()) do
-            if desc:IsA("RemoteEvent") then
-                pcall(function() desc:FireServer("Door") end)
+        local door = tower:FindFirstChild("Door")
+        if not door then return end
+
+        -- Fire the BindableEvent (main door mechanism)
+        local event = door:FindFirstChild("Event")
+        if event then
+            pcall(function() event:Fire("Door") end)
+            pcall(function() event:Fire() end)
+        end
+
+        -- Also fire ProximityPrompts on DoorLever / DeadBolt
+        for _, child in pairs({"DoorLever", "DoorLever2", "DeadBolt"}) do
+            local part = door:FindFirstChild(child)
+            if part then
+                for _, desc in pairs(part:GetDescendants()) do
+                    if desc:IsA("ProximityPrompt") then
+                        desc.HoldDuration = 0
+                        desc.MaxActivationDistance = 9e9
+                        desc.RequiresLineOfSight = false
+                        fireproximityprompt(desc)
+                    end
+                    if desc:IsA("ClickDetector") then
+                        fireclickdetector(desc)
+                    end
+                end
             end
         end
     end)
@@ -990,13 +1010,10 @@ CreateToggle(exploitsTab, "⚡ Fix Power", function(state)
                 pcall(function()
                     Workspace.Map.PowerStation.StationFolder.RemoteEvent:FireServer("StationStart")
                 end)
-                -- Also fire ProximityPrompts on the station
                 pcall(function()
                     for _, d in pairs(Workspace.Map.PowerStation:GetDescendants()) do
                         if d:IsA("ProximityPrompt") then
                             d.HoldDuration = 0
-                            d.MaxActivationDistance = 9e9
-                            d.RequiresLineOfSight = false
                             fireproximityprompt(d)
                         end
                     end
