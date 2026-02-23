@@ -259,35 +259,42 @@ for key, button in pairs(tabButtons) do
 end
 
 -- ================= MINIMIZE / SHIELD PILL =================
--- Create shield elements FIRST (forward declare)
-local shieldBg = Instance.new("Frame")
-shieldBg.Name = "ShieldPill"
-shieldBg.Parent = MainFrame
-shieldBg.BackgroundColor3 = Colors.Background
-shieldBg.BackgroundTransparency = 0.15
-shieldBg.Size = UDim2.new(1, 0, 1, 0)
-shieldBg.Position = UDim2.new(0, 0, 0, 0)
-shieldBg.BorderSizePixel = 0
-shieldBg.ZIndex = 20
-shieldBg.Visible = false
-Instance.new("UICorner", shieldBg).CornerRadius = UDim.new(0, 12)
-local shieldStroke = Instance.new("UIStroke", shieldBg)
-shieldStroke.Color = Colors.Accent
-shieldStroke.Transparency = 0.5
-shieldStroke.Thickness = 1.5
+-- Shield pill is a SEPARATE draggable circle (NOT inside MainFrame)
+local shieldPill = Instance.new("Frame")
+shieldPill.Name = "ShieldPill"
+shieldPill.Parent = ScreenGui
+shieldPill.BackgroundColor3 = Colors.Accent
+shieldPill.BackgroundTransparency = 0.15
+shieldPill.Size = UDim2.new(0, 50, 0, 50)
+shieldPill.Position = UDim2.new(0, 10, 0, 10)
+shieldPill.BorderSizePixel = 0
+shieldPill.Active = true
+shieldPill.Draggable = true
+shieldPill.Visible = false
+shieldPill.ZIndex = 20
+Instance.new("UICorner", shieldPill).CornerRadius = UDim.new(1, 0) -- Fully circular
+local shieldStroke = Instance.new("UIStroke", shieldPill)
+shieldStroke.Color = Colors.AccentLight
+shieldStroke.Transparency = 0.3
+shieldStroke.Thickness = 2
 
--- Shield text (use simple text, not emoji — emoji breaks on mobile executors)
-local shieldLabel = Instance.new("TextLabel", shieldBg)
+-- Shield gradient (purple gradient like active tabs)
+local shieldGrad = Instance.new("UIGradient", shieldPill)
+shieldGrad.Color = ColorSequence.new(Colors.Accent, Color3.fromRGB(129, 140, 248))
+shieldGrad.Rotation = 135
+
+-- Shield text
+local shieldLabel = Instance.new("TextLabel", shieldPill)
 shieldLabel.BackgroundTransparency = 1
 shieldLabel.Size = UDim2.new(1, 0, 1, 0)
 shieldLabel.Font = Enum.Font.GothamBold
 shieldLabel.Text = "SH"
-shieldLabel.TextColor3 = Colors.AccentLight
-shieldLabel.TextSize = 14
+shieldLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
+shieldLabel.TextSize = 16
 shieldLabel.ZIndex = 21
 
--- Shield hit button (clickable overlay)
-local shieldHit = Instance.new("TextButton", shieldBg)
+-- Shield click button
+local shieldHit = Instance.new("TextButton", shieldPill)
 shieldHit.BackgroundTransparency = 1
 shieldHit.Size = UDim2.new(1, 0, 1, 0)
 shieldHit.Text = ""
@@ -296,38 +303,22 @@ shieldHit.Active = true
 
 local isMinimized = false
 
--- Function to open (shared by minimize toggle and shieldHit)
 local function openPanel()
     isMinimized = false
-    shieldBg.Visible = false
-    tweenTo(MainFrame, {Size = UDim2.new(0, 310, 0, 195), BackgroundTransparency = 0.60}, tweenSmooth)
-    task.delay(0.3, function()
-        HeaderBar.Visible = true
-        tabBar.Visible = true
-        contentBox.Visible = true
-        accentLine.Visible = true
-    end)
+    shieldPill.Visible = false
+    MainFrame.Visible = true
 end
 
 local function closePanel()
     isMinimized = true
-    -- Hide UI elements
-    HeaderBar.Visible = false
-    tabBar.Visible = false
-    contentBox.Visible = false
-    accentLine.Visible = false
-    -- Show shield pill
-    shieldBg.Visible = true
-    -- Shrink MainFrame to 50x50 square
-    tweenTo(MainFrame, {Size = UDim2.new(0, 50, 0, 50), BackgroundTransparency = 0.15}, tweenSmooth)
+    MainFrame.Visible = false
+    -- Position shield near where MainFrame was
+    shieldPill.Position = MainFrame.Position
+    shieldPill.Visible = true
 end
 
 minimizeButton.MouseButton1Click:Connect(function()
-    if isMinimized then
-        openPanel()
-    else
-        closePanel()
-    end
+    closePanel()
 end)
 
 shieldHit.MouseButton1Click:Connect(function()
@@ -1578,7 +1569,7 @@ task.spawn(function()
                 for _, player in pairs(Players:GetChildren()) do
                     if player ~= LocalPlayer and player.Character then
                         createHighlight(player.Character, Color3.fromRGB(0, 120, 255), "SE_P", espPlayerList)
-                        createBillboard(player.Character, player.Name, Color3.fromRGB(100, 180, 255), "SB_P", espPlayerList)
+                        createBillboard(player.Character, player.Name, Color3.fromRGB(52, 211, 153), "SB_P", espPlayerList)
                     end
                 end
             end)
