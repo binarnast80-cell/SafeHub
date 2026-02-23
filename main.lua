@@ -1018,8 +1018,9 @@ CreateButton(exploitsTab, "🗼 Open Tower", function()
 end, 10)
 
 
--- 9. Fix Power (simplified: teleport + free movement)
+-- 9. Fix Power (forced teleport + free movement after lock-in)
 local fixPowerActive = false
+local fixPowerHoldingPosition = false -- true while we're forcing position
 local POWER_STATION_CFRAME = CFrame.new(-280.808014, 20.3924561, -212.159821, -0.10549771, -1.16743761e-08, -0.994419575, 9.45945828e-08, 1, -2.17754046e-08, 0.994419575, -9.63639621e-08, -0.10549771)
 
 CreateToggle(exploitsTab, "⚡ Fix Power", function(state)
@@ -1031,14 +1032,44 @@ CreateToggle(exploitsTab, "⚡ Fix Power", function(state)
             local hrp = character:FindFirstChild("HumanoidRootPart")
             if not hrp then fixPowerActive = false return end
 
-            -- Teleport to power station (old-script style: 1000x loop)
-            wait()
+            -- Temporarily disable AntiDetect so it doesn't fight our teleport
+            local wasAntiDetect = antiDetectEnabled
+            if wasAntiDetect then
+                antiDetectEnabled = false
+            end
+
+            -- Phase 1: Force-hold position at power station for 3 seconds
+            -- This fights server corrections by overriding CFrame EVERY FRAME
+            fixPowerHoldingPosition = true
+            local holdConn
+            holdConn = RunService.Heartbeat:Connect(function()
+                if fixPowerHoldingPosition then
+                    pcall(function()
+                        hrp.CFrame = POWER_STATION_CFRAME
+                    end)
+                end
+            end)
+
+            -- Initial burst teleport
             for i = 1, 1000 do
                 hrp.CFrame = POWER_STATION_CFRAME
             end
-            wait()
 
-            -- Fire StationStart (one initial fire, like old script)
+            -- Hold for 3 seconds (server needs time to accept new position)
+            wait(3)
+
+            -- Stop holding — player is now FREE to move
+            fixPowerHoldingPosition = false
+            pcall(function() holdConn:Disconnect() end)
+
+            -- Update AntiDetect safe position so it doesn't revert us
+            if wasAntiDetect then
+                lastSafePosition = hrp.Position
+                antiDetectStartTime = tick()
+                antiDetectEnabled = true
+            end
+
+            -- Fire StationStart
             pcall(function()
                 Workspace.Map.PowerStation.StationFolder.RemoteEvent:FireServer("StationStart")
             end)
@@ -1054,11 +1085,11 @@ CreateToggle(exploitsTab, "⚡ Fix Power", function(state)
                     fixPowerActive = false
                     break
                 end
-                -- Re-fire repair with randomized delay (less suspicious)
+                -- Re-fire repair with randomized delay
                 pcall(function()
                     Workspace.Map.PowerStation.StationFolder.RemoteEvent:FireServer("StationStart")
                 end)
-                wait(1.5 + math.random() * 1.5) -- 1.5-3s random interval
+                wait(1.5 + math.random() * 1.5)
             end
         end)
     end
