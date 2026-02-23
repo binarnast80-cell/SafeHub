@@ -666,18 +666,34 @@ CreateToggle(playerTab, "🏃 Enable Speed", function(state)
     speedEnabled = state
 end, 6)
 
+-- 4b. JumpPower
+local jumpEnabled = false
+local jumpValue = 50
+CreateStepper(playerTab, "🦘 Jump Power", 20, 80, 5, 50, function(value)
+    jumpValue = value
+end, 7)
+CreateToggle(playerTab, "🦘 Enable Jump", function(state)
+    jumpEnabled = state
+    if not state then
+        pcall(function()
+            local hum = LocalPlayer.Character and LocalPlayer.Character:FindFirstChildOfClass("Humanoid")
+            if hum then hum.JumpPower = 50 end
+        end)
+    end
+end, 8)
+
 -- 5. FOV
 local fovEnabled = false
 local fovValue = 70
 CreateStepper(playerTab, "🔭 FOV", 50, 120, 5, 70, function(value)
     fovValue = value
-end, 7)
+end, 9)
 CreateToggle(playerTab, "🔭 Enable FOV", function(state)
     fovEnabled = state
     if not state then
         pcall(function() Workspace.CurrentCamera.FieldOfView = 70 end)
     end
-end, 8)
+end, 10)
 
 
 -- ===================== VISUALS TAB =====================
@@ -979,9 +995,25 @@ local multiLootOverlay = nil
 
 CreateToggle(exploitsTab, "📦 Insta-Open Boxes", function(state)
     instaOpenEnabled = state
-    -- Show/hide DISABLED overlay on sub-function
-    if multiLootOverlay then
-        multiLootOverlay.Visible = not state
+    -- When turning OFF, restore original values so boxes aren't permanently unlocked
+    if not state then
+        pcall(function()
+            for _, box in pairs(Workspace.Debris.SupplyCrates:GetChildren()) do
+                if box.Name == "Box" then
+                    local unlockValue = box:FindFirstChild("UnlockValue")
+                    if unlockValue and unlockValue:GetAttribute("_origVal") ~= nil then
+                        unlockValue.Value = unlockValue:GetAttribute("_origVal")
+                    end
+                    local guiPart = box:FindFirstChild("GUIPart")
+                    if guiPart and guiPart:FindFirstChild("ProximityPrompt") then
+                        local origHold = guiPart.ProximityPrompt:GetAttribute("_origHold")
+                        if origHold then
+                            guiPart.ProximityPrompt.HoldDuration = origHold
+                        end
+                    end
+                end
+            end
+        end)
     end
 end, 4)
 
@@ -1098,54 +1130,12 @@ CreateButton(exploitsTab, "🗼 Open Tower", function()
 end, 10)
 
 
--- 9. Auto Fix Power (main) + TP to Station (sub-function)
+-- 9. Auto Fix Power
 local autoFixPowerActive = false
-local tpToStationActive = false
-local tpToStationOverlay = nil
-local tpToStationFrame = nil
-local tpSavedCFrame = nil -- saved position before TP
-local POWER_STATION_CFRAME = CFrame.new(-280.808014, 20.3924561, -212.159821, -0.10549771, -1.16743761e-08, -0.994419575, 9.45945828e-08, 1, -2.17754046e-08, 0.994419575, -9.63639621e-08, -0.10549771)
 
--- Helper: carefully return player to saved position (old-script wait() pattern)
-local function returnFromStation()
-    pcall(function()
-        local hrp = LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("HumanoidRootPart")
-        if not hrp then return end
-        if tpSavedCFrame then
-            hrp.CFrame = tpSavedCFrame
-            wait()
-            hrp.Anchored = false
-            wait(0.4)
-            tpSavedCFrame = nil
-        else
-            hrp.Anchored = false
-        end
-        -- Update AntiDetect safe position
-        if antiDetectEnabled then
-            lastSafePosition = hrp.Position
-            antiDetectStartTime = tick()
-        end
-    end)
-end
-
--- Main toggle: Auto Fix Power (fires repair remote, player can move freely)
+-- Auto Fix Power (fires repair remote, player can move freely)
 CreateToggle(exploitsTab, "⚡ Auto Fix Power", function(state)
     autoFixPowerActive = state
-    -- When main is turned off, also disable sub-function
-    if not state then
-        local wasTP = tpToStationActive
-        tpToStationActive = false
-        if wasTP then
-            returnFromStation()
-        end
-    end
-    -- Show/hide sub-function toggle entirely
-    if tpToStationOverlay then
-        tpToStationOverlay.Visible = not state
-    end
-    if tpToStationFrame then
-        tpToStationFrame.Visible = state
-    end
 
     if state then
         task.spawn(function()
@@ -1162,18 +1152,6 @@ CreateToggle(exploitsTab, "⚡ Auto Fix Power", function(state)
                 end)
                 if level and level >= 1000 then
                     autoFixPowerActive = false
-                    -- Also disable sub-function + return
-                    local wasTP = tpToStationActive
-                    tpToStationActive = false
-                    if wasTP then
-                        returnFromStation()
-                    end
-                    if tpToStationOverlay then
-                        tpToStationOverlay.Visible = true
-                    end
-                    if tpToStationFrame then
-                        tpToStationFrame.Visible = false
-                    end
                     break
                 end
                 pcall(function()
@@ -1185,53 +1163,7 @@ CreateToggle(exploitsTab, "⚡ Auto Fix Power", function(state)
     end
 end, 11)
 
--- Sub-toggle: TP to Station (teleport + anchor hold, old-script pattern)
-tpToStationFrame = CreateToggle(exploitsTab, "📍 TP to Station", function(state)
-    -- Block if main is not active
-    if not autoFixPowerActive then return end
-    tpToStationActive = state
 
-    if state then
-        task.spawn(function()
-            local character = LocalPlayer.Character
-            if not character then tpToStationActive = false return end
-            local hrp = character:FindFirstChild("HumanoidRootPart")
-            if not hrp then tpToStationActive = false return end
-
-            -- Temporarily disable AntiDetect
-            local wasAntiDetect = antiDetectEnabled
-            if wasAntiDetect then
-                antiDetectEnabled = false
-            end
-
-            -- Save position before teleport (old-script: lastpos = HRP.CFrame)
-            tpSavedCFrame = hrp.CFrame
-
-            -- Teleport (old-script pattern: wait() → burst → Anchored → wait())
-            wait()
-            for i = 1, 1000 do
-                hrp.CFrame = POWER_STATION_CFRAME
-            end
-            hrp.Anchored = true
-            wait()
-
-            -- Restore AntiDetect with station as safe position
-            if wasAntiDetect then
-                lastSafePosition = POWER_STATION_CFRAME.Position
-                antiDetectStartTime = tick()
-                antiDetectEnabled = true
-            end
-
-            -- Player stays Anchored at station until toggle is turned off
-        end)
-    else
-        -- Deactivated: return to saved position (old-script pattern)
-        returnFromStation()
-    end
-end, 11)
-
-tpToStationOverlay = CreateDisabledOverlay(tpToStationFrame)
-tpToStationFrame.Visible = false -- starts hidden (main is off)
 
 CreateSeparator(exploitsTab, 12)
 
@@ -1319,7 +1251,6 @@ trackConnection(RunService.Heartbeat:Connect(function()
                 local humanoid = character:FindFirstChildOfClass("Humanoid")
                 if humanoid then
                     humanoid.WalkSpeed = speedValue
-                    humanoid.JumpPower = 50
                 end
                 -- Remove trap/slowdown body movers
                 for _, obj in pairs(character:GetDescendants()) do
@@ -1327,6 +1258,20 @@ trackConnection(RunService.Heartbeat:Connect(function()
                     or obj:IsA("BodyGyro") or obj:IsA("LinearVelocity") then
                         obj:Destroy()
                     end
+                end
+            end
+        end)
+    end
+
+    -- JumpPower: enforce every frame
+    if jumpEnabled then
+        pcall(function()
+            local character = LocalPlayer.Character
+            if character then
+                local humanoid = character:FindFirstChildOfClass("Humanoid")
+                if humanoid then
+                    humanoid.JumpPower = jumpValue
+                    humanoid.UseJumpPower = true
                 end
             end
         end)
@@ -1460,12 +1405,26 @@ trackConnection(RunService.Heartbeat:Connect(function(deltaTime)
                 if box.Name == "Box" then
                     local guiPart = box:FindFirstChild("GUIPart")
                     if guiPart and guiPart:FindFirstChild("ProximityPrompt") then
-                        for attribute, _ in pairs(guiPart.ProximityPrompt:GetAttributes()) do
-                            guiPart.ProximityPrompt:SetAttribute(attribute, false)
+                        local prompt = guiPart.ProximityPrompt
+                        -- Save original HoldDuration before changing
+                        if prompt:GetAttribute("_origHold") == nil then
+                            prompt:SetAttribute("_origHold", prompt.HoldDuration)
+                        end
+                        prompt.HoldDuration = 0
+                        for attribute, _ in pairs(prompt:GetAttributes()) do
+                            if attribute ~= "_origHold" then
+                                prompt:SetAttribute(attribute, false)
+                            end
                         end
                     end
                     local unlockValue = box:FindFirstChild("UnlockValue")
-                    if unlockValue then unlockValue.Value = 100 end
+                    if unlockValue then
+                        -- Save original value before changing
+                        if unlockValue:GetAttribute("_origVal") == nil then
+                            unlockValue:SetAttribute("_origVal", unlockValue.Value)
+                        end
+                        unlockValue.Value = 100
+                    end
                 end
             end
         end)
