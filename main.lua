@@ -686,6 +686,7 @@ end, 4)
 -- Location ESP
 local locationESPEnabled = false
 local locationParts = {}
+local powerStationSubLabel = nil -- live-updating power text on map
 local LOCATIONS = {
     {"Safe House",    Vector3.new(-363.5, 20, 70.3)},
     {"Shop",          Vector3.new(-25.2, 20, -258.4)},
@@ -705,14 +706,16 @@ CreateToggle(visualsTab, "📍 Location Names", function(state)
             part.Position = location[2]
             part.Parent = Workspace
 
+            -- Billboard: taller for Power Station (extra line)
+            local isPowerStation = (location[1] == "Power Station")
             local billboard = Instance.new("BillboardGui", part)
-            billboard.Size = UDim2.new(0, 110, 0, 18)
+            billboard.Size = isPowerStation and UDim2.new(0, 110, 0, 30) or UDim2.new(0, 110, 0, 18)
             billboard.StudsOffset = Vector3.new(0, 6, 0)
             billboard.AlwaysOnTop = true
             billboard.MaxDistance = 2000
 
             local textLabel = Instance.new("TextLabel", billboard)
-            textLabel.Size = UDim2.new(1, 0, 1, 0)
+            textLabel.Size = isPowerStation and UDim2.new(1, 0, 0, 16) or UDim2.new(1, 0, 1, 0)
             textLabel.BackgroundTransparency = 1
             textLabel.TextColor3 = Color3.fromRGB(255, 160, 0)
             textLabel.Text = "📍 " .. location[1]
@@ -721,6 +724,20 @@ CreateToggle(visualsTab, "📍 Location Names", function(state)
             textLabel.TextStrokeTransparency = 0.4
             textLabel.TextStrokeColor3 = Color3.fromRGB(0, 0, 0)
 
+            -- Power Station: add small power level text below
+            if isPowerStation then
+                local subLabel = Instance.new("TextLabel", billboard)
+                subLabel.Size = UDim2.new(1, 0, 0, 12)
+                subLabel.Position = UDim2.new(0, 0, 0, 16)
+                subLabel.BackgroundTransparency = 1
+                subLabel.TextColor3 = Color3.fromRGB(255, 220, 80)
+                subLabel.Text = "⚡ ..."
+                subLabel.TextSize = 6
+                subLabel.Font = Enum.Font.Gotham
+                subLabel.TextStrokeTransparency = 0.5
+                subLabel.TextStrokeColor3 = Color3.fromRGB(0, 0, 0)
+                powerStationSubLabel = subLabel
+            end
 
             table.insert(locationParts, part)
             table.insert(allHighlights, part)
@@ -730,6 +747,7 @@ CreateToggle(visualsTab, "📍 Location Names", function(state)
             pcall(function() marker:Destroy() end)
         end
         locationParts = {}
+        powerStationSubLabel = nil
     end
 end, 5)
 
@@ -920,43 +938,79 @@ CreateButton(exploitsTab, "🚪 Open SafeHouse", function()
     end)
 end, 9)
 
--- 8. Open ObservationTower door
+-- 8. Open ObservationTower door (needs correct RemoteEvent — see note)
+-- TODO: User needs to find RemoteEvent inside ObservationTower via Dex
 CreateButton(exploitsTab, "🗼 Open Tower", function()
     pcall(function()
         local tower = Workspace.Map:FindFirstChild("ObservationTower")
-        if tower then
-            -- Fire all ProximityPrompts on the tower (door prompts)
-            for _, desc in pairs(tower:GetDescendants()) do
-                if desc:IsA("ProximityPrompt") then
-                    desc.HoldDuration = 0
-                    desc.MaxActivationDistance = 9e9
-                    desc.RequiresLineOfSight = false
-                    fireproximityprompt(desc)
-                end
-            end
-            -- Fire all RemoteEvents on the tower (same pattern as SafeHouse door)
-            for _, desc in pairs(tower:GetDescendants()) do
-                if desc:IsA("RemoteEvent") then
-                    pcall(function() desc:FireServer("Door") end)
-                    pcall(function() desc:FireServer("Open") end)
-                    pcall(function() desc:FireServer() end)
-                end
-            end
-            -- Also fire ClickDetectors
-            for _, desc in pairs(tower:GetDescendants()) do
-                if desc:IsA("ClickDetector") then
-                    fireclickdetector(desc)
-                end
+        if not tower then return end
+        -- Try to find and fire door-specific RemoteEvent
+        for _, desc in pairs(tower:GetDescendants()) do
+            if desc:IsA("RemoteEvent") then
+                pcall(function() desc:FireServer("Door") end)
             end
         end
     end)
 end, 10)
 
 
--- 9. Fix Power (toggle — fires every frame in Heartbeat for continuous hold)
+-- 9. Fix Power (teleport to station + auto-repair until PowerLevel = 1000)
 local fixPowerActive = false
+local POWER_STATION_CFRAME = CFrame.new(-280.808014, 20.3924561, -212.159821, -0.10549771, -1.16743761e-08, -0.994419575, 9.45945828e-08, 1, -2.17754046e-08, 0.994419575, -9.63639621e-08, -0.10549771)
+
 CreateToggle(exploitsTab, "⚡ Fix Power", function(state)
     fixPowerActive = state
+    if state then
+        task.spawn(function()
+            local character = LocalPlayer.Character
+            if not character then fixPowerActive = false return end
+            local hrp = character:FindFirstChild("HumanoidRootPart")
+            if not hrp then fixPowerActive = false return end
+
+            -- Save position before teleport
+            local savedCFrame = hrp.CFrame
+
+            -- Teleport to Power Station
+            hrp.CFrame = POWER_STATION_CFRAME
+            task.wait(0.3)
+
+            -- Auto-repair loop: fire StationStart until PowerLevel = 1000
+            while fixPowerActive do
+                -- Check if power is full
+                local level = nil
+                pcall(function()
+                    level = ReplicatedStorage.PowerValues.PowerLevel.Value
+                end)
+                if level and level >= 1000 then
+                    fixPowerActive = false
+                    break
+                end
+
+                -- Keep firing repair
+                pcall(function()
+                    Workspace.Map.PowerStation.StationFolder.RemoteEvent:FireServer("StationStart")
+                end)
+                -- Also fire ProximityPrompts on the station
+                pcall(function()
+                    for _, d in pairs(Workspace.Map.PowerStation:GetDescendants()) do
+                        if d:IsA("ProximityPrompt") then
+                            d.HoldDuration = 0
+                            d.MaxActivationDistance = 9e9
+                            d.RequiresLineOfSight = false
+                            fireproximityprompt(d)
+                        end
+                    end
+                end)
+
+                task.wait(0.1)
+            end
+
+            -- Done: unanchor if anchored
+            pcall(function()
+                if hrp then hrp.Anchored = false end
+            end)
+        end)
+    end
 end, 11)
 
 CreateSeparator(exploitsTab, 12)
@@ -1113,22 +1167,7 @@ trackConnection(RunService.Heartbeat:Connect(function()
         end)
     end
 
-    -- Fix Power: fire every frame = continuous hold, no gaps
-    if fixPowerActive then
-        pcall(function()
-            Workspace.Map.PowerStation.StationFolder.RemoteEvent:FireServer("StationStart")
-        end)
-        pcall(function()
-            for _, d in pairs(Workspace.Map.PowerStation:GetDescendants()) do
-                if d:IsA("ProximityPrompt") then
-                    d.HoldDuration = 0
-                    d.MaxActivationDistance = 9e9
-                    d.RequiresLineOfSight = false
-                    fireproximityprompt(d)
-                end
-            end
-        end)
-    end
+    -- (Fix Power logic moved to task.spawn in toggle callback)
 end))
 
 -- REACTIVE: instant response to game property changes
@@ -1262,13 +1301,20 @@ trackConnection(RunService.Heartbeat:Connect(function(deltaTime)
         end
     end)
 
-    -- Power level display (direct read)
+    -- Power level display (direct read) + map marker update
     pcall(function()
         local level = getPowerLevel()
         if level then
             powerLabel.Text = "  ⚡ Power: " .. tostring(level) .. " / 1000"
+            -- Update map marker sub-label if Location Names is active
+            if powerStationSubLabel then
+                powerStationSubLabel.Text = "⚡ " .. tostring(level) .. " / 1000"
+            end
         else
             powerLabel.Text = "  ⚡ Power: N/A"
+            if powerStationSubLabel then
+                powerStationSubLabel.Text = "⚡ N/A"
+            end
         end
     end)
 end))
