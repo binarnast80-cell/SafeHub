@@ -73,7 +73,7 @@ MainFrame.Parent = ScreenGui
 MainFrame.BackgroundColor3 = Colors.Background
 MainFrame.BackgroundTransparency = 0.60
 MainFrame.Position = UDim2.new(0.01, 0, 0.04, 0)
-MainFrame.Size = UDim2.new(0, 340, 0, 195)
+MainFrame.Size = UDim2.new(0, 310, 0, 195)
 MainFrame.Active = true
 MainFrame.Draggable = true
 MainFrame.BorderSizePixel = 0
@@ -134,15 +134,35 @@ minimizeButton.TextColor3 = Colors.Red
 minimizeButton.TextSize = 14
 minimizeButton.ZIndex = 11
 
--- ================= TAB BAR =================
+-- ================= TAB BAR (bottom, opaque) =================
 local tabBar = Instance.new("Frame")
 tabBar.Parent = MainFrame
-tabBar.BackgroundColor3 = Color3.fromRGB(10, 10, 16)
-tabBar.BackgroundTransparency = 0.65
-tabBar.Size = UDim2.new(1, 0, 0, 16)
-tabBar.Position = UDim2.new(0, 0, 0, 23)
+tabBar.BackgroundColor3 = Colors.Header
+tabBar.BackgroundTransparency = 0
+tabBar.Size = UDim2.new(1, 0, 0, 18)
+tabBar.Position = UDim2.new(0, 0, 1, -18)
 tabBar.BorderSizePixel = 0
 tabBar.ZIndex = 5
+Instance.new("UICorner", tabBar).CornerRadius = UDim.new(0, 12)
+
+-- Fill top corners of bottom tab bar
+local tabBarFill = Instance.new("Frame")
+tabBarFill.Parent = tabBar
+tabBarFill.BackgroundColor3 = Colors.Header
+tabBarFill.Size = UDim2.new(1, 0, 0, 9)
+tabBarFill.Position = UDim2.new(0, 0, 0, 0)
+tabBarFill.BorderSizePixel = 0
+tabBarFill.ZIndex = 5
+
+-- Accent line above tab bar
+local tabAccentLine = Instance.new("Frame")
+tabAccentLine.Parent = MainFrame
+tabAccentLine.BackgroundColor3 = Colors.Accent
+tabAccentLine.BackgroundTransparency = 0.5
+tabAccentLine.Size = UDim2.new(1, 0, 0, 1)
+tabAccentLine.Position = UDim2.new(0, 0, 1, -19)
+tabAccentLine.BorderSizePixel = 0
+tabAccentLine.ZIndex = 10
 
 local tabConfig = {
     {key = "Player",   label = "Player",   x = 0.03},
@@ -154,12 +174,12 @@ local tabButtons = {}
 local tabFrames = {}
 local currentTab = "Player"
 
--- Tab indicator (animated underline)
+-- Tab indicator (animated underline at top of bottom bar)
 local tabIndicator = Instance.new("Frame")
 tabIndicator.Parent = tabBar
 tabIndicator.BackgroundColor3 = Colors.Accent
 tabIndicator.Size = UDim2.new(0.28, 0, 0, 2)
-tabIndicator.Position = UDim2.new(0.03, 0, 1, -2)
+tabIndicator.Position = UDim2.new(0.03, 0, 0, 0)
 tabIndicator.BorderSizePixel = 0
 tabIndicator.ZIndex = 7
 
@@ -182,7 +202,7 @@ end
 local contentBox = Instance.new("Frame")
 contentBox.Parent = MainFrame
 contentBox.BackgroundTransparency = 1
-contentBox.Position = UDim2.new(0, 0, 0, 40)
+contentBox.Position = UDim2.new(0, 0, 0, 24)
 contentBox.Size = UDim2.new(1, 0, 1, -43)
 contentBox.BorderSizePixel = 0
 
@@ -223,7 +243,7 @@ local function switchTab(key)
     end
     for _, config in ipairs(tabConfig) do
         if config.key == key then
-            tweenTo(tabIndicator, {Position = UDim2.new(config.x, 0, 1, -2)})
+            tweenTo(tabIndicator, {Position = UDim2.new(config.x, 0, 0, 0)})
         end
     end
 end
@@ -232,23 +252,65 @@ for key, button in pairs(tabButtons) do
     button.MouseButton1Click:Connect(function() switchTab(key) end)
 end
 
--- ================= MINIMIZE / PILL =================
+-- ================= MINIMIZE / SHIELD PILL =================
 local isMinimized = false
 minimizeButton.MouseButton1Click:Connect(function()
     isMinimized = not isMinimized
     if isMinimized then
+        -- Hide everything except MainFrame itself
+        HeaderBar.Visible = false
         tabBar.Visible = false
         contentBox.Visible = false
         accentLine.Visible = false
-        tweenTo(MainFrame, {Size = UDim2.new(0, 85, 0, 22)}, tweenSmooth)
-        minimizeButton.Text = "+"
+        tabAccentLine.Visible = false
+        -- Shrink to small shield square
+        tweenTo(MainFrame, {Size = UDim2.new(0, 28, 0, 28), BackgroundTransparency = 0.15}, tweenSmooth)
+        -- Show shield icon
+        shieldIcon.Visible = true
+        shieldHit.Visible = true
     else
-        tweenTo(MainFrame, {Size = UDim2.new(0, 340, 0, 195)}, tweenSmooth)
-        minimizeButton.Text = "–"
+        tweenTo(MainFrame, {Size = UDim2.new(0, 310, 0, 195), BackgroundTransparency = 0.60}, tweenSmooth)
         task.delay(0.25, function()
+            HeaderBar.Visible = true
             tabBar.Visible = true
             contentBox.Visible = true
             accentLine.Visible = true
+            tabAccentLine.Visible = true
+        end)
+    end
+end)
+
+-- Shield icon (visible when minimized, acts as re-open button)
+local shieldIcon = Instance.new("TextLabel")
+shieldIcon.Parent = MainFrame
+shieldIcon.BackgroundTransparency = 1
+shieldIcon.Size = UDim2.new(1, 0, 1, 0)
+shieldIcon.Font = Enum.Font.GothamBold
+shieldIcon.Text = "🛡️"
+shieldIcon.TextSize = 14
+shieldIcon.ZIndex = 2
+shieldIcon.Visible = false  -- hidden when expanded
+
+-- Clicking shield when minimized re-opens
+local shieldHit = Instance.new("TextButton", MainFrame)
+shieldHit.BackgroundTransparency = 1
+shieldHit.Size = UDim2.new(1, 0, 1, 0)
+shieldHit.Text = ""
+shieldHit.ZIndex = 3
+shieldHit.Visible = false  -- hidden when expanded
+
+shieldHit.MouseButton1Click:Connect(function()
+    if isMinimized then
+        isMinimized = false
+        shieldIcon.Visible = false
+        shieldHit.Visible = false
+        tweenTo(MainFrame, {Size = UDim2.new(0, 310, 0, 195), BackgroundTransparency = 0.60}, tweenSmooth)
+        task.delay(0.25, function()
+            HeaderBar.Visible = true
+            tabBar.Visible = true
+            contentBox.Visible = true
+            accentLine.Visible = true
+            tabAccentLine.Visible = true
         end)
     end
 end)
