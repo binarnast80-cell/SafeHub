@@ -1023,24 +1023,48 @@ end, 10)
 local autoFixPowerActive = false
 local tpToStationActive = false
 local tpToStationOverlay = nil
-local fixPowerHoldConn = nil
+local tpSavedCFrame = nil -- saved position before TP
 local POWER_STATION_CFRAME = CFrame.new(-280.808014, 20.3924561, -212.159821, -0.10549771, -1.16743761e-08, -0.994419575, 9.45945828e-08, 1, -2.17754046e-08, 0.994419575, -9.63639621e-08, -0.10549771)
+
+-- Helper: carefully return player to saved position (old-script wait() pattern)
+local function returnFromStation()
+    pcall(function()
+        local hrp = LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("HumanoidRootPart")
+        if not hrp then return end
+        if tpSavedCFrame then
+            hrp.CFrame = tpSavedCFrame
+            wait()
+            hrp.Anchored = false
+            wait(0.4)
+            tpSavedCFrame = nil
+        else
+            hrp.Anchored = false
+        end
+        -- Update AntiDetect safe position
+        if antiDetectEnabled then
+            lastSafePosition = hrp.Position
+            antiDetectStartTime = tick()
+        end
+    end)
+end
 
 -- Main toggle: Auto Fix Power (fires repair remote, player can move freely)
 CreateToggle(exploitsTab, "⚡ Auto Fix Power", function(state)
     autoFixPowerActive = state
     -- When main is turned off, also disable sub-function
     if not state then
+        local wasTP = tpToStationActive
         tpToStationActive = false
-        -- Stop holding position if active
-        if fixPowerHoldConn then
-            pcall(function() fixPowerHoldConn:Disconnect() end)
-            fixPowerHoldConn = nil
+        if wasTP then
+            returnFromStation()
         end
     end
-    -- Show/hide DISABLED overlay on sub-function
+    -- Show/hide sub-function toggle entirely
     if tpToStationOverlay then
         tpToStationOverlay.Visible = not state
+    end
+    if tpToStationFrame then
+        tpToStationFrame.Visible = state
     end
 
     if state then
@@ -1058,14 +1082,17 @@ CreateToggle(exploitsTab, "⚡ Auto Fix Power", function(state)
                 end)
                 if level and level >= 1000 then
                     autoFixPowerActive = false
-                    -- Also disable sub-function
+                    -- Also disable sub-function + return
+                    local wasTP = tpToStationActive
                     tpToStationActive = false
-                    if fixPowerHoldConn then
-                        pcall(function() fixPowerHoldConn:Disconnect() end)
-                        fixPowerHoldConn = nil
+                    if wasTP then
+                        returnFromStation()
                     end
                     if tpToStationOverlay then
                         tpToStationOverlay.Visible = true
+                    end
+                    if tpToStationFrame then
+                        tpToStationFrame.Visible = false
                     end
                     break
                 end
@@ -1078,7 +1105,7 @@ CreateToggle(exploitsTab, "⚡ Auto Fix Power", function(state)
     end
 end, 11)
 
--- Sub-toggle: TP to Station (teleport + hold at power station)
+-- Sub-toggle: TP to Station (teleport + anchor hold, old-script pattern)
 local tpToStationFrame = CreateToggle(exploitsTab, "📍 TP to Station", function(state)
     -- Block if main is not active
     if not autoFixPowerActive then return end
@@ -1097,53 +1124,34 @@ local tpToStationFrame = CreateToggle(exploitsTab, "📍 TP to Station", functio
                 antiDetectEnabled = false
             end
 
-            -- Initial burst teleport
+            -- Save position before teleport (old-script: lastpos = HRP.CFrame)
+            tpSavedCFrame = hrp.CFrame
+
+            -- Teleport (old-script pattern: wait() → burst → Anchored → wait())
+            wait()
             for i = 1, 1000 do
                 hrp.CFrame = POWER_STATION_CFRAME
             end
+            hrp.Anchored = true
+            wait()
 
-            -- Heartbeat hold: force CFrame every frame while active
-            fixPowerHoldConn = RunService.Heartbeat:Connect(function()
-                if tpToStationActive then
-                    pcall(function()
-                        local c = LocalPlayer.Character
-                        if c then
-                            local h = c:FindFirstChild("HumanoidRootPart")
-                            if h then h.CFrame = POWER_STATION_CFRAME end
-                        end
-                    end)
-                end
-            end)
-
-            -- Restore AntiDetect with new safe position
+            -- Restore AntiDetect with station as safe position
             if wasAntiDetect then
-                task.delay(1, function()
-                    lastSafePosition = POWER_STATION_CFRAME.Position
-                    antiDetectStartTime = tick()
-                    antiDetectEnabled = true
-                end)
+                lastSafePosition = POWER_STATION_CFRAME.Position
+                antiDetectStartTime = tick()
+                antiDetectEnabled = true
             end
+
+            -- Player stays Anchored at station until toggle is turned off
         end)
     else
-        -- Stop holding
-        if fixPowerHoldConn then
-            pcall(function() fixPowerHoldConn:Disconnect() end)
-            fixPowerHoldConn = nil
-        end
-        -- Update AntiDetect safe position to current pos
-        if antiDetectEnabled then
-            pcall(function()
-                local hrp = LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("HumanoidRootPart")
-                if hrp then
-                    lastSafePosition = hrp.Position
-                    antiDetectStartTime = tick()
-                end
-            end)
-        end
+        -- Deactivated: return to saved position (old-script pattern)
+        returnFromStation()
     end
 end, 11)
 
 tpToStationOverlay = CreateDisabledOverlay(tpToStationFrame)
+tpToStationFrame.Visible = false -- starts hidden (main is off)
 
 CreateSeparator(exploitsTab, 12)
 
@@ -1195,10 +1203,7 @@ CreateButton(exploitsTab, "🗑️ Unload", function()
     locationESPEnabled = false
     autoFixPowerActive = false
     tpToStationActive = false
-    if fixPowerHoldConn then
-        pcall(function() fixPowerHoldConn:Disconnect() end)
-        fixPowerHoldConn = nil
-    end
+    returnFromStation()
 
     pcall(function() Workspace.CurrentCamera.FieldOfView = 70 end)
     pcall(function() LocalPlayer.CameraMode = Enum.CameraMode.LockFirstPerson end)
