@@ -34,24 +34,28 @@ local function trackHighlight(highlight)
     return highlight
 end
 
--- ================= COLOR PALETTE (dark & transparent) =================
+-- ================= COLOR PALETTE (dark gradient purple) =================
 local Colors = {
-    Background      = Color3.fromRGB(12, 12, 14),
-    Card            = Color3.fromRGB(26, 26, 30),
-    CardHover       = Color3.fromRGB(40, 40, 44),
-    Header          = Color3.fromRGB(10, 10, 12),
-    Accent          = Color3.fromRGB(120, 160, 235),
-    TextWhite       = Color3.fromRGB(220, 222, 225),
-    TextDim         = Color3.fromRGB(120, 120, 130),
-    ToggleOff       = Color3.fromRGB(38, 38, 42),
-    Separator       = Color3.fromRGB(48, 48, 52),
-    Red             = Color3.fromRGB(255, 70, 70),
-    DisabledOverlay = Color3.fromRGB(8, 8, 10),
+    Background      = Color3.fromRGB(14, 14, 20),
+    Card            = Color3.fromRGB(22, 22, 32),
+    CardHover       = Color3.fromRGB(34, 34, 48),
+    Header          = Color3.fromRGB(8, 8, 14),
+    Accent          = Color3.fromRGB(108, 92, 231),
+    AccentLight     = Color3.fromRGB(167, 139, 250),
+    TextWhite       = Color3.fromRGB(232, 233, 237),
+    TextDim         = Color3.fromRGB(139, 141, 150),
+    ToggleOff       = Color3.fromRGB(38, 38, 48),
+    ToggleKnob      = Color3.fromRGB(204, 208, 216),
+    Separator       = Color3.fromRGB(60, 60, 72),
+    Red             = Color3.fromRGB(255, 77, 106),
+    Green           = Color3.fromRGB(52, 211, 153),
+    DisabledOverlay = Color3.fromRGB(6, 6, 10),
 }
 
 -- ================= TWEEN HELPERS =================
-local tweenFast = TweenInfo.new(0.12, Enum.EasingStyle.Quad)
-local tweenSmooth = TweenInfo.new(0.25, Enum.EasingStyle.Quint)
+local tweenFast = TweenInfo.new(0.15, Enum.EasingStyle.Quad, Enum.EasingDirection.Out)
+local tweenSmooth = TweenInfo.new(0.3, Enum.EasingStyle.Quint, Enum.EasingDirection.Out)
+local tweenBounce = TweenInfo.new(0.4, Enum.EasingStyle.Back, Enum.EasingDirection.Out)
 
 local function tweenTo(object, properties, info)
     TweenService:Create(object, info or tweenFast, properties):Play()
@@ -67,9 +71,9 @@ local MainFrame = Instance.new("Frame")
 MainFrame.Name = "Main"
 MainFrame.Parent = ScreenGui
 MainFrame.BackgroundColor3 = Colors.Background
-MainFrame.BackgroundTransparency = 0.25
+MainFrame.BackgroundTransparency = 0.60
 MainFrame.Position = UDim2.new(0.01, 0, 0.04, 0)
-MainFrame.Size = UDim2.new(0, 295, 0, 195)
+MainFrame.Size = UDim2.new(0, 340, 0, 195)
 MainFrame.Active = true
 MainFrame.Draggable = true
 MainFrame.BorderSizePixel = 0
@@ -95,11 +99,11 @@ headerFill.Position = UDim2.new(0, 0, 1, -11)
 headerFill.BorderSizePixel = 0
 headerFill.ZIndex = 10
 
--- Accent line
+-- Accent line (purple gradient glow)
 local accentLine = Instance.new("Frame")
 accentLine.Parent = MainFrame
 accentLine.BackgroundColor3 = Colors.Accent
-accentLine.BackgroundTransparency = 0.5
+accentLine.BackgroundTransparency = 0.4
 accentLine.Size = UDim2.new(1, 0, 0, 1)
 accentLine.Position = UDim2.new(0, 0, 0, 22)
 accentLine.BorderSizePixel = 0
@@ -111,9 +115,9 @@ titleLabel.Parent = HeaderBar
 titleLabel.BackgroundTransparency = 1
 titleLabel.Position = UDim2.new(0, 8, 0, 0)
 titleLabel.Size = UDim2.new(0.7, 0, 1, 0)
-titleLabel.Font = Enum.Font.GothamMedium
-titleLabel.Text = "🛡️ V1.16.2"
-titleLabel.TextColor3 = Colors.TextWhite
+titleLabel.Font = Enum.Font.GothamBold
+titleLabel.Text = "🛡️ SAFE HUB  v1.16.2"
+titleLabel.TextColor3 = Colors.AccentLight
 titleLabel.TextSize = 9
 titleLabel.TextXAlignment = Enum.TextXAlignment.Left
 titleLabel.ZIndex = 11
@@ -126,15 +130,15 @@ minimizeButton.Position = UDim2.new(1, -24, 0, 0)
 minimizeButton.Size = UDim2.new(0, 24, 0, 22)
 minimizeButton.Font = Enum.Font.GothamBold
 minimizeButton.Text = "–"
-minimizeButton.TextColor3 = Colors.Accent
+minimizeButton.TextColor3 = Colors.Red
 minimizeButton.TextSize = 14
 minimizeButton.ZIndex = 11
 
 -- ================= TAB BAR =================
 local tabBar = Instance.new("Frame")
 tabBar.Parent = MainFrame
-tabBar.BackgroundColor3 = Colors.Background
-tabBar.BackgroundTransparency = 0.3
+tabBar.BackgroundColor3 = Color3.fromRGB(10, 10, 16)
+tabBar.BackgroundTransparency = 0.65
 tabBar.Size = UDim2.new(1, 0, 0, 16)
 tabBar.Position = UDim2.new(0, 0, 0, 23)
 tabBar.BorderSizePixel = 0
@@ -187,7 +191,7 @@ local function createTabFrame(key)
     scroll.Name = key
     scroll.Parent = contentBox
     scroll.BackgroundColor3 = Colors.Card
-    scroll.BackgroundTransparency = 0.5
+    scroll.BackgroundTransparency = 0.65
     scroll.Size = UDim2.new(1, -6, 1, -2)
     scroll.Position = UDim2.new(0, 3, 0, 1)
     scroll.CanvasSize = UDim2.new(0, 0, 0, 550)
@@ -239,7 +243,7 @@ minimizeButton.MouseButton1Click:Connect(function()
         tweenTo(MainFrame, {Size = UDim2.new(0, 85, 0, 22)}, tweenSmooth)
         minimizeButton.Text = "+"
     else
-        tweenTo(MainFrame, {Size = UDim2.new(0, 295, 0, 195)}, tweenSmooth)
+        tweenTo(MainFrame, {Size = UDim2.new(0, 340, 0, 195)}, tweenSmooth)
         minimizeButton.Text = "–"
         task.delay(0.25, function()
             tabBar.Visible = true
@@ -255,18 +259,18 @@ end)
 local function CreateToggle(parent, text, callback, layoutOrder)
     local frame = Instance.new("Frame")
     frame.Parent = parent
-    frame.BackgroundColor3 = Colors.ToggleOff
-    frame.BackgroundTransparency = 0.4
-    frame.Size = UDim2.new(0.96, 0, 0, 20)
+    frame.BackgroundColor3 = Colors.Card
+    frame.BackgroundTransparency = 0.60
+    frame.Size = UDim2.new(0.96, 0, 0, 22)
     frame.BorderSizePixel = 0
     frame.LayoutOrder = layoutOrder or 0
-    Instance.new("UICorner", frame).CornerRadius = UDim.new(0, 6)
+    Instance.new("UICorner", frame).CornerRadius = UDim.new(0, 8)
 
     local label = Instance.new("TextLabel", frame)
     label.BackgroundTransparency = 1
-    label.Position = UDim2.new(0, 6, 0, 0)
-    label.Size = UDim2.new(1, -36, 1, 0)
-    label.Font = Enum.Font.Gotham
+    label.Position = UDim2.new(0, 8, 0, 0)
+    label.Size = UDim2.new(1, -42, 1, 0)
+    label.Font = Enum.Font.GothamMedium
     label.Text = text
     label.TextColor3 = Colors.TextWhite
     label.TextSize = 8
@@ -274,17 +278,17 @@ local function CreateToggle(parent, text, callback, layoutOrder)
     label.TextTruncate = Enum.TextTruncate.AtEnd
 
     local switchTrack = Instance.new("Frame", frame)
-    switchTrack.BackgroundColor3 = Color3.fromRGB(55, 55, 60)
-    switchTrack.BackgroundTransparency = 0.3
-    switchTrack.Size = UDim2.new(0, 24, 0, 11)
-    switchTrack.Position = UDim2.new(1, -28, 0.5, -5)
+    switchTrack.BackgroundColor3 = Colors.ToggleOff
+    switchTrack.BackgroundTransparency = 0.2
+    switchTrack.Size = UDim2.new(0, 28, 0, 13)
+    switchTrack.Position = UDim2.new(1, -33, 0.5, -6)
     switchTrack.BorderSizePixel = 0
     Instance.new("UICorner", switchTrack).CornerRadius = UDim.new(1, 0)
 
     local switchDot = Instance.new("Frame", switchTrack)
-    switchDot.BackgroundColor3 = Colors.TextDim
-    switchDot.Size = UDim2.new(0, 9, 0, 9)
-    switchDot.Position = UDim2.new(0, 1, 0.5, -4)
+    switchDot.BackgroundColor3 = Colors.ToggleKnob
+    switchDot.Size = UDim2.new(0, 11, 0, 11)
+    switchDot.Position = UDim2.new(0, 1, 0.5, -5)
     switchDot.BorderSizePixel = 0
     Instance.new("UICorner", switchDot).CornerRadius = UDim.new(1, 0)
 
@@ -298,13 +302,13 @@ local function CreateToggle(parent, text, callback, layoutOrder)
     hitButton.MouseButton1Click:Connect(function()
         isOn = not isOn
         if isOn then
-            tweenTo(switchTrack, {BackgroundColor3 = Colors.Accent, BackgroundTransparency = 0.3})
-            tweenTo(switchDot, {Position = UDim2.new(1, -10, 0.5, -4), BackgroundColor3 = Colors.Accent})
-            tweenTo(frame, {BackgroundTransparency = 0.25})
+            tweenTo(switchTrack, {BackgroundColor3 = Colors.Accent, BackgroundTransparency = 0})
+            tweenTo(switchDot, {Position = UDim2.new(1, -12, 0.5, -5), BackgroundColor3 = Color3.fromRGB(255, 255, 255)})
+            tweenTo(frame, {BackgroundTransparency = 0.40})
         else
-            tweenTo(switchTrack, {BackgroundColor3 = Color3.fromRGB(55, 55, 60), BackgroundTransparency = 0.3})
-            tweenTo(switchDot, {Position = UDim2.new(0, 1, 0.5, -4), BackgroundColor3 = Colors.TextDim})
-            tweenTo(frame, {BackgroundTransparency = 0.4})
+            tweenTo(switchTrack, {BackgroundColor3 = Colors.ToggleOff, BackgroundTransparency = 0.2})
+            tweenTo(switchDot, {Position = UDim2.new(0, 1, 0.5, -5), BackgroundColor3 = Colors.ToggleKnob})
+            tweenTo(frame, {BackgroundTransparency = 0.60})
         end
         pcall(callback, isOn)
     end)
@@ -315,9 +319,9 @@ end
 local function CreateButton(parent, text, callback, layoutOrder)
     local button = Instance.new("TextButton")
     button.Parent = parent
-    button.BackgroundColor3 = Colors.CardHover
-    button.BackgroundTransparency = 0.4
-    button.Size = UDim2.new(0.96, 0, 0, 20)
+    button.BackgroundColor3 = Colors.Accent
+    button.BackgroundTransparency = 0.85
+    button.Size = UDim2.new(0.96, 0, 0, 22)
     button.Font = Enum.Font.GothamMedium
     button.Text = text
     button.TextColor3 = Colors.TextWhite
@@ -325,12 +329,12 @@ local function CreateButton(parent, text, callback, layoutOrder)
     button.AutoButtonColor = false
     button.BorderSizePixel = 0
     button.LayoutOrder = layoutOrder or 0
-    Instance.new("UICorner", button).CornerRadius = UDim.new(0, 6)
+    Instance.new("UICorner", button).CornerRadius = UDim.new(0, 8)
 
     button.MouseButton1Click:Connect(function()
-        tweenTo(button, {BackgroundColor3 = Colors.Accent, BackgroundTransparency = 0})
-        task.wait(0.1)
-        tweenTo(button, {BackgroundColor3 = Colors.CardHover, BackgroundTransparency = 0.4})
+        tweenTo(button, {BackgroundColor3 = Colors.Accent, BackgroundTransparency = 0.3})
+        task.wait(0.12)
+        tweenTo(button, {BackgroundColor3 = Colors.Accent, BackgroundTransparency = 0.85})
         pcall(callback)
     end)
 
@@ -348,34 +352,34 @@ end
 
 local function CreateInfoLabel(parent, text, layoutOrder)
     local label = Instance.new("TextLabel", parent)
-    label.BackgroundColor3 = Colors.Background
-    label.BackgroundTransparency = 0.55
+    label.BackgroundColor3 = Color3.fromRGB(16, 16, 24)
+    label.BackgroundTransparency = 0.65
     label.Size = UDim2.new(0.96, 0, 0, 16)
-    label.Font = Enum.Font.Gotham
+    label.Font = Enum.Font.GothamMedium
     label.Text = "  " .. text
     label.TextColor3 = Colors.TextDim
     label.TextSize = 7
     label.TextXAlignment = Enum.TextXAlignment.Left
     label.BorderSizePixel = 0
     label.LayoutOrder = layoutOrder or 0
-    Instance.new("UICorner", label).CornerRadius = UDim.new(0, 5)
+    Instance.new("UICorner", label).CornerRadius = UDim.new(0, 6)
     return label
 end
 
 local function CreateStepper(parent, text, minVal, maxVal, step, default, callback, layoutOrder)
     local frame = Instance.new("Frame", parent)
-    frame.BackgroundColor3 = Colors.ToggleOff
-    frame.BackgroundTransparency = 0.4
-    frame.Size = UDim2.new(0.96, 0, 0, 20)
+    frame.BackgroundColor3 = Colors.Card
+    frame.BackgroundTransparency = 0.60
+    frame.Size = UDim2.new(0.96, 0, 0, 22)
     frame.BorderSizePixel = 0
     frame.LayoutOrder = layoutOrder or 0
-    Instance.new("UICorner", frame).CornerRadius = UDim.new(0, 6)
+    Instance.new("UICorner", frame).CornerRadius = UDim.new(0, 8)
 
     local label = Instance.new("TextLabel", frame)
     label.BackgroundTransparency = 1
     label.Position = UDim2.new(0, 6, 0, 0)
     label.Size = UDim2.new(0.5, 0, 1, 0)
-    label.Font = Enum.Font.Gotham
+    label.Font = Enum.Font.GothamMedium
     label.Text = text
     label.TextColor3 = Colors.TextWhite
     label.TextSize = 8
@@ -387,9 +391,9 @@ local function CreateStepper(parent, text, minVal, maxVal, step, default, callba
     valueLabel.BackgroundTransparency = 1
     valueLabel.Position = UDim2.new(0.6, 0, 0, 0)
     valueLabel.Size = UDim2.new(0.14, 0, 1, 0)
-    valueLabel.Font = Enum.Font.GothamMedium
+    valueLabel.Font = Enum.Font.GothamBold
     valueLabel.Text = tostring(currentValue)
-    valueLabel.TextColor3 = Colors.Accent
+    valueLabel.TextColor3 = Colors.AccentLight
     valueLabel.TextSize = 8
 
     local function makeStepButton(buttonText, xPosition, delta)
@@ -405,15 +409,15 @@ local function CreateStepper(parent, text, minVal, maxVal, step, default, callba
         stepBtn.AutoButtonColor = false
         stepBtn.BorderSizePixel = 0
         stepBtn.ZIndex = 3
-        Instance.new("UICorner", stepBtn).CornerRadius = UDim.new(0, 4)
+        Instance.new("UICorner", stepBtn).CornerRadius = UDim.new(0, 5)
 
         stepBtn.MouseButton1Click:Connect(function()
             currentValue = math.clamp(currentValue + delta, minVal, maxVal)
             valueLabel.Text = tostring(currentValue)
             pcall(callback, currentValue)
-            tweenTo(stepBtn, {BackgroundColor3 = Colors.Accent})
-            task.wait(0.06)
-            tweenTo(stepBtn, {BackgroundColor3 = Colors.CardHover})
+            tweenTo(stepBtn, {BackgroundColor3 = Colors.Accent, BackgroundTransparency = 0})
+            task.wait(0.08)
+            tweenTo(stepBtn, {BackgroundColor3 = Colors.CardHover, BackgroundTransparency = 0.3})
         end)
     end
 
@@ -1023,6 +1027,7 @@ end, 10)
 local autoFixPowerActive = false
 local tpToStationActive = false
 local tpToStationOverlay = nil
+local tpToStationFrame = nil
 local tpSavedCFrame = nil -- saved position before TP
 local POWER_STATION_CFRAME = CFrame.new(-280.808014, 20.3924561, -212.159821, -0.10549771, -1.16743761e-08, -0.994419575, 9.45945828e-08, 1, -2.17754046e-08, 0.994419575, -9.63639621e-08, -0.10549771)
 
@@ -1106,7 +1111,7 @@ CreateToggle(exploitsTab, "⚡ Auto Fix Power", function(state)
 end, 11)
 
 -- Sub-toggle: TP to Station (teleport + anchor hold, old-script pattern)
-local tpToStationFrame = CreateToggle(exploitsTab, "📍 TP to Station", function(state)
+tpToStationFrame = CreateToggle(exploitsTab, "📍 TP to Station", function(state)
     -- Block if main is not active
     if not autoFixPowerActive then return end
     tpToStationActive = state
