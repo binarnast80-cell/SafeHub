@@ -953,7 +953,7 @@ CreateButton(exploitsTab, "🚪 Open SafeHouse", function()
     end)
 end, 9)
 
--- 8. Open ObservationTower door (TP to lever → fire prompt → TP back, like old-script openhousedoor)
+-- 8. Open ObservationTower door (try prompt first, fallback: TP → prompt → TP back)
 CreateButton(exploitsTab, "🗼 Open Tower", function()
     task.spawn(function()
         local character = LocalPlayer.Character
@@ -966,39 +966,54 @@ CreateButton(exploitsTab, "🗼 Open Tower", function()
         local door = tower:FindFirstChild("Door")
         if not door then return end
 
-        -- Find DoorLever to get its position
-        local lever = door:FindFirstChild("DoorLever") or door:FindFirstChild("DoorLever2")
-        if not lever then return end
-        local leverPart = lever:IsA("BasePart") and lever or lever:FindFirstChildWhichIsA("BasePart")
-        if not leverPart then return end
-
-        -- Save position (exact old-script pattern)
-        local lastpos = hrp.CFrame
-
-        -- Teleport to lever
-        hrp.CFrame = leverPart.CFrame + Vector3.new(0, -3, 0)
-        wait()
-        hrp.Anchored = true
-        wait(0.4)
-
-        -- Fire all ProximityPrompts on DoorLever / DoorLever2 / DeadBolt
+        -- Collect all ProximityPrompts from levers
+        local prompts = {}
         for _, childName in pairs({"DoorLever", "DoorLever2", "DeadBolt"}) do
             local part = door:FindFirstChild(childName)
             if part then
                 for _, desc in pairs(part:GetDescendants()) do
                     if desc:IsA("ProximityPrompt") then
-                        fireproximityprompt(desc)
+                        table.insert(prompts, desc)
                     end
                 end
             end
         end
+        if #prompts == 0 then return end
 
-        wait(0.4)
+        -- Attempt 1: fire prompts from current position (no TP, fast)
+        for _, prompt in pairs(prompts) do
+            pcall(function() fireproximityprompt(prompt) end)
+        end
 
-        -- Teleport back (exact old-script pattern)
-        hrp.CFrame = lastpos
-        wait()
-        hrp.Anchored = false
+        -- Check if door opened
+        wait(0.5)
+        local doorOpened = false
+        pcall(function()
+            doorOpened = door:FindFirstChild("DoorOpen") and door.DoorOpen.Value == true
+        end)
+
+        -- Attempt 2: if door didn't open, fallback to TP → prompt → TP back
+        if not doorOpened then
+            local lever = door:FindFirstChild("DoorLever") or door:FindFirstChild("DoorLever2")
+            if not lever then return end
+            local leverPart = lever:IsA("BasePart") and lever or lever:FindFirstChildWhichIsA("BasePart")
+            if not leverPart then return end
+
+            local lastpos = hrp.CFrame
+            hrp.CFrame = leverPart.CFrame + Vector3.new(0, -3, 0)
+            wait()
+            hrp.Anchored = true
+            wait(0.4)
+
+            for _, prompt in pairs(prompts) do
+                pcall(function() fireproximityprompt(prompt) end)
+            end
+
+            wait(0.4)
+            hrp.CFrame = lastpos
+            wait()
+            hrp.Anchored = false
+        end
     end)
 end, 10)
 
