@@ -259,47 +259,29 @@ for key, button in pairs(tabButtons) do
 end
 
 -- ================= MINIMIZE / SHIELD PILL =================
--- Shield pill is a SEPARATE draggable circle (NOT inside MainFrame)
-local shieldPill = Instance.new("Frame")
+-- Shield pill = single TextButton (no child buttons blocking drag!)
+local shieldPill = Instance.new("TextButton")
 shieldPill.Name = "ShieldPill"
 shieldPill.Parent = ScreenGui
-shieldPill.BackgroundColor3 = Colors.Accent
-shieldPill.BackgroundTransparency = 0.15
-shieldPill.Size = UDim2.new(0, 50, 0, 50)
+shieldPill.BackgroundColor3 = Colors.Background
+shieldPill.BackgroundTransparency = 0.1
+shieldPill.Size = UDim2.new(0, 38, 0, 38)
 shieldPill.Position = UDim2.new(0, 10, 0, 10)
 shieldPill.BorderSizePixel = 0
 shieldPill.Active = true
 shieldPill.Draggable = true
 shieldPill.Visible = false
 shieldPill.ZIndex = 20
-Instance.new("UICorner", shieldPill).CornerRadius = UDim.new(1, 0) -- Fully circular
+shieldPill.AutoButtonColor = false
+shieldPill.Text = "SH"
+shieldPill.Font = Enum.Font.GothamBold
+shieldPill.TextColor3 = Colors.AccentLight
+shieldPill.TextSize = 13
+Instance.new("UICorner", shieldPill).CornerRadius = UDim.new(1, 0)
 local shieldStroke = Instance.new("UIStroke", shieldPill)
 shieldStroke.Color = Colors.AccentLight
-shieldStroke.Transparency = 0.3
-shieldStroke.Thickness = 2
-
--- Shield gradient (purple gradient like active tabs)
-local shieldGrad = Instance.new("UIGradient", shieldPill)
-shieldGrad.Color = ColorSequence.new(Colors.Accent, Color3.fromRGB(129, 140, 248))
-shieldGrad.Rotation = 135
-
--- Shield text
-local shieldLabel = Instance.new("TextLabel", shieldPill)
-shieldLabel.BackgroundTransparency = 1
-shieldLabel.Size = UDim2.new(1, 0, 1, 0)
-shieldLabel.Font = Enum.Font.GothamBold
-shieldLabel.Text = "SH"
-shieldLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
-shieldLabel.TextSize = 16
-shieldLabel.ZIndex = 21
-
--- Shield click button
-local shieldHit = Instance.new("TextButton", shieldPill)
-shieldHit.BackgroundTransparency = 1
-shieldHit.Size = UDim2.new(1, 0, 1, 0)
-shieldHit.Text = ""
-shieldHit.ZIndex = 22
-shieldHit.Active = true
+shieldStroke.Transparency = 0.35
+shieldStroke.Thickness = 1.5
 
 local isMinimized = false
 
@@ -312,7 +294,6 @@ end
 local function closePanel()
     isMinimized = true
     MainFrame.Visible = false
-    -- Position shield near where MainFrame was
     shieldPill.Position = MainFrame.Position
     shieldPill.Visible = true
 end
@@ -321,7 +302,7 @@ minimizeButton.MouseButton1Click:Connect(function()
     closePanel()
 end)
 
-shieldHit.MouseButton1Click:Connect(function()
+shieldPill.MouseButton1Click:Connect(function()
     if isMinimized then
         openPanel()
     end
