@@ -953,21 +953,57 @@ CreateButton(exploitsTab, "🚪 Open SafeHouse", function()
     end)
 end, 9)
 
--- 8. Open ObservationTower door (BoolValues + server Event)
+-- 8. Open ObservationTower door (TP to lever → fire prompt → TP back, like old-script openhousedoor)
 CreateButton(exploitsTab, "🗼 Open Tower", function()
-    pcall(function()
-        local door = Workspace.Map.ObservationTower.Door
-        door.DoorOpen.Value = true
-        door.FullClosed.Value = false
-        door.DoorOpening.Value = true
-        -- Also fire Event on server
-        pcall(function() door.Event:FireServer("Door") end)
-        pcall(function() door.Event:Fire("Door") end)
+    task.spawn(function()
+        local character = LocalPlayer.Character
+        if not character then return end
+        local hrp = character:FindFirstChild("HumanoidRootPart")
+        if not hrp then return end
+
+        local tower = Workspace.Map:FindFirstChild("ObservationTower")
+        if not tower then return end
+        local door = tower:FindFirstChild("Door")
+        if not door then return end
+
+        -- Find DoorLever to get its position
+        local lever = door:FindFirstChild("DoorLever") or door:FindFirstChild("DoorLever2")
+        if not lever then return end
+        local leverPart = lever:IsA("BasePart") and lever or lever:FindFirstChildWhichIsA("BasePart")
+        if not leverPart then return end
+
+        -- Save position (exact old-script pattern)
+        local lastpos = hrp.CFrame
+
+        -- Teleport to lever
+        hrp.CFrame = leverPart.CFrame + Vector3.new(0, -3, 0)
+        wait()
+        hrp.Anchored = true
+        wait(0.4)
+
+        -- Fire all ProximityPrompts on DoorLever / DoorLever2 / DeadBolt
+        for _, childName in pairs({"DoorLever", "DoorLever2", "DeadBolt"}) do
+            local part = door:FindFirstChild(childName)
+            if part then
+                for _, desc in pairs(part:GetDescendants()) do
+                    if desc:IsA("ProximityPrompt") then
+                        fireproximityprompt(desc)
+                    end
+                end
+            end
+        end
+
+        wait(0.4)
+
+        -- Teleport back (exact old-script pattern)
+        hrp.CFrame = lastpos
+        wait()
+        hrp.Anchored = false
     end)
 end, 10)
 
 
--- 9. Fix Power (old-script TP logic + auto-repair until PowerLevel = 1000)
+-- 9. Fix Power (exact old-script logic)
 local fixPowerActive = false
 local fixPowerSavedCFrame = nil
 local POWER_STATION_CFRAME = CFrame.new(-280.808014, 20.3924561, -212.159821, -0.10549771, -1.16743761e-08, -0.994419575, 9.45945828e-08, 1, -2.17754046e-08, 0.994419575, -9.63639621e-08, -0.10549771)
@@ -979,40 +1015,30 @@ CreateToggle(exploitsTab, "⚡ Fix Power", function(state)
             local character = LocalPlayer.Character
             if not character then fixPowerActive = false return end
             local hrp = character:FindFirstChild("HumanoidRootPart")
-            local humanoid = character:FindFirstChildOfClass("Humanoid")
             if not hrp then fixPowerActive = false return end
 
-            -- Save position before teleport
+            -- Save position (exact old-script: lastpos = HRP.CFrame)
             fixPowerSavedCFrame = hrp.CFrame
 
-            -- Force first-person camera during fix
+            -- Force first-person camera
             pcall(function()
                 LocalPlayer.CameraMode = Enum.CameraMode.LockFirstPerson
             end)
 
-            -- Stop all movement first
-            pcall(function()
-                hrp.Velocity = Vector3.new(0, 0, 0)
-                hrp.AssemblyLinearVelocity = Vector3.new(0, 0, 0)
-                hrp.AssemblyAngularVelocity = Vector3.new(0, 0, 0)
-            end)
-
-            -- Teleport: use PivotTo on character + CFrame on HRP (multiple passes)
+            -- Teleport (exact old-script: 1000x loop)
+            wait()
             for i = 1, 1000 do
-                pcall(function() character:PivotTo(POWER_STATION_CFRAME) end)
                 hrp.CFrame = POWER_STATION_CFRAME
             end
-
-            -- Anchor to prevent physics from moving us
+            -- Anchor (exact old-script: wait() then Anchored)
+            wait()
             hrp.Anchored = true
-            task.wait(0.3)
+            wait()
 
-            -- Fire StationStart to begin repair
-            pcall(function()
-                Workspace.Map.PowerStation.StationFolder.RemoteEvent:FireServer("StationStart")
-            end)
+            -- Fire StationStart (exact old-script)
+            Workspace.Map.PowerStation.StationFolder.RemoteEvent:FireServer("StationStart")
 
-            -- Auto-repair loop: monitor PowerLevel until 1000
+            -- Monitor loop: check PowerLevel, auto-stop at 1000
             while fixPowerActive do
                 local level = nil
                 pcall(function()
@@ -1022,36 +1048,22 @@ CreateToggle(exploitsTab, "⚡ Fix Power", function(state)
                     fixPowerActive = false
                     break
                 end
-
-                -- Keep position locked at station
-                pcall(function() hrp.CFrame = POWER_STATION_CFRAME end)
-                -- Keep hammering repair
+                -- Keep firing repair every second
                 pcall(function()
                     Workspace.Map.PowerStation.StationFolder.RemoteEvent:FireServer("StationStart")
                 end)
-                pcall(function()
-                    for _, d in pairs(Workspace.Map.PowerStation:GetDescendants()) do
-                        if d:IsA("ProximityPrompt") then
-                            d.HoldDuration = 0
-                            fireproximityprompt(d)
-                        end
-                    end
-                end)
-
-                task.wait(0.1)
+                wait(1)
             end
 
-            -- Done: unanchor and teleport back
-            pcall(function() hrp.Anchored = false end)
+            -- Done: unanchor
+            hrp.Anchored = false
+            wait()
+            -- Teleport back
             if fixPowerSavedCFrame then
-                task.wait(0.1)
-                for i = 1, 100 do
-                    pcall(function() character:PivotTo(fixPowerSavedCFrame) end)
-                    hrp.CFrame = fixPowerSavedCFrame
-                end
+                hrp.CFrame = fixPowerSavedCFrame
                 fixPowerSavedCFrame = nil
             end
-            -- Restore camera to previous state
+            -- Restore camera
             pcall(function()
                 if thirdPersonEnabled then
                     LocalPlayer.CameraMode = Enum.CameraMode.Classic
@@ -1061,24 +1073,20 @@ CreateToggle(exploitsTab, "⚡ Fix Power", function(state)
             end)
         end)
     else
-        -- Manual toggle off: unanchor and teleport back
+        -- Manual toggle off
         task.spawn(function()
             local character = LocalPlayer.Character
             if character then
                 local hrp = character:FindFirstChild("HumanoidRootPart")
                 if hrp then
-                    pcall(function() hrp.Anchored = false end)
+                    hrp.Anchored = false
+                    wait()
                     if fixPowerSavedCFrame then
-                        task.wait(0.1)
-                        for i = 1, 100 do
-                            pcall(function() character:PivotTo(fixPowerSavedCFrame) end)
-                            hrp.CFrame = fixPowerSavedCFrame
-                        end
+                        hrp.CFrame = fixPowerSavedCFrame
                         fixPowerSavedCFrame = nil
                     end
                 end
             end
-            -- Restore camera
             pcall(function()
                 if thirdPersonEnabled then
                     LocalPlayer.CameraMode = Enum.CameraMode.Classic
