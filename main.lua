@@ -284,6 +284,7 @@ shieldStroke.Transparency = 0.35
 shieldStroke.Thickness = 1.5
 
 local isMinimized = false
+local shieldDragStart = nil -- track position to distinguish tap vs drag
 
 local function openPanel()
     isMinimized = false
@@ -294,7 +295,6 @@ end
 local function closePanel()
     isMinimized = true
     MainFrame.Visible = false
-    shieldPill.Position = MainFrame.Position
     shieldPill.Visible = true
 end
 
@@ -302,10 +302,21 @@ minimizeButton.MouseButton1Click:Connect(function()
     closePanel()
 end)
 
+-- Track where the pill was when press started
+shieldPill.MouseButton1Down:Connect(function()
+    shieldDragStart = shieldPill.Position
+end)
+
+-- On release: only open if pill didn't move (= tap, not drag)
 shieldPill.MouseButton1Click:Connect(function()
-    if isMinimized then
-        openPanel()
+    if isMinimized and shieldDragStart then
+        local dx = math.abs(shieldPill.Position.X.Offset - shieldDragStart.X.Offset)
+        local dy = math.abs(shieldPill.Position.Y.Offset - shieldDragStart.Y.Offset)
+        if dx < 5 and dy < 5 then
+            openPanel()
+        end
     end
+    shieldDragStart = nil
 end)
 
 
