@@ -134,67 +134,64 @@ minimizeButton.TextColor3 = Colors.Red
 minimizeButton.TextSize = 14
 minimizeButton.ZIndex = 11
 
--- ================= TAB BAR (bottom, opaque) =================
+-- ================= TAB BAR (top, opaque like header) =================
 local tabBar = Instance.new("Frame")
 tabBar.Parent = MainFrame
 tabBar.BackgroundColor3 = Colors.Header
 tabBar.BackgroundTransparency = 0
-tabBar.Size = UDim2.new(1, 0, 0, 18)
-tabBar.Position = UDim2.new(0, 0, 1, -18)
+tabBar.Size = UDim2.new(1, 0, 0, 20)
+tabBar.Position = UDim2.new(0, 0, 0, 23)
 tabBar.BorderSizePixel = 0
 tabBar.ZIndex = 5
-Instance.new("UICorner", tabBar).CornerRadius = UDim.new(0, 12)
 
--- Fill top corners of bottom tab bar
-local tabBarFill = Instance.new("Frame")
-tabBarFill.Parent = tabBar
-tabBarFill.BackgroundColor3 = Colors.Header
-tabBarFill.Size = UDim2.new(1, 0, 0, 9)
-tabBarFill.Position = UDim2.new(0, 0, 0, 0)
-tabBarFill.BorderSizePixel = 0
-tabBarFill.ZIndex = 5
-
--- Accent line above tab bar
-local tabAccentLine = Instance.new("Frame")
-tabAccentLine.Parent = MainFrame
-tabAccentLine.BackgroundColor3 = Colors.Accent
-tabAccentLine.BackgroundTransparency = 0.5
-tabAccentLine.Size = UDim2.new(1, 0, 0, 1)
-tabAccentLine.Position = UDim2.new(0, 0, 1, -19)
-tabAccentLine.BorderSizePixel = 0
-tabAccentLine.ZIndex = 10
+local tabLayout = Instance.new("UIListLayout", tabBar)
+tabLayout.FillDirection = Enum.FillDirection.Horizontal
+tabLayout.HorizontalAlignment = Enum.HorizontalAlignment.Center
+tabLayout.VerticalAlignment = Enum.VerticalAlignment.Center
+tabLayout.Padding = UDim.new(0, 3)
+local tabPad = Instance.new("UIPadding", tabBar)
+tabPad.PaddingLeft = UDim.new(0, 4)
+tabPad.PaddingRight = UDim.new(0, 4)
+tabPad.PaddingTop = UDim.new(0, 2)
+tabPad.PaddingBottom = UDim.new(0, 2)
 
 local tabConfig = {
-    {key = "Player",   label = "Player",   x = 0.03},
-    {key = "Visuals",  label = "Visuals",  x = 0.35},
-    {key = "Exploits", label = "Exploits", x = 0.67},
+    {key = "Player",   label = "Player"},
+    {key = "Visuals",  label = "Visuals"},
+    {key = "Exploits", label = "Exploits"},
 }
 
 local tabButtons = {}
 local tabFrames = {}
 local currentTab = "Player"
 
--- Tab indicator (animated underline at top of bottom bar)
-local tabIndicator = Instance.new("Frame")
-tabIndicator.Parent = tabBar
-tabIndicator.BackgroundColor3 = Colors.Accent
-tabIndicator.Size = UDim2.new(0.28, 0, 0, 2)
-tabIndicator.Position = UDim2.new(0.03, 0, 0, 0)
-tabIndicator.BorderSizePixel = 0
-tabIndicator.ZIndex = 7
-
 for _, config in ipairs(tabConfig) do
     local button = Instance.new("TextButton")
+    button.Name = config.key
     button.Parent = tabBar
-    button.BackgroundTransparency = 1
-    button.Position = UDim2.new(config.x, 0, 0, 0)
-    button.Size = UDim2.new(0.30, 0, 1, 0)
-    button.Font = Enum.Font.GothamMedium
+    button.Size = UDim2.new(0.32, 0, 1, 0)
+    button.Font = Enum.Font.GothamBold
     button.Text = config.label
     button.TextSize = 8
-    button.TextColor3 = (config.key == "Player") and Colors.Accent or Colors.TextDim
-    button.ZIndex = 6
     button.AutoButtonColor = false
+    button.BorderSizePixel = 0
+    button.ZIndex = 6
+    button.LayoutOrder = _
+    Instance.new("UICorner", button).CornerRadius = UDim.new(0, 6)
+
+    if config.key == "Player" then
+        -- Active: purple gradient pill
+        button.BackgroundColor3 = Colors.Accent
+        button.BackgroundTransparency = 0
+        button.TextColor3 = Color3.fromRGB(255, 255, 255)
+        local grad = Instance.new("UIGradient", button)
+        grad.Color = ColorSequence.new(Colors.Accent, Color3.fromRGB(129, 140, 248))
+        grad.Rotation = 135
+    else
+        -- Inactive: transparent
+        button.BackgroundTransparency = 1
+        button.TextColor3 = Colors.TextDim
+    end
     tabButtons[config.key] = button
 end
 
@@ -202,8 +199,8 @@ end
 local contentBox = Instance.new("Frame")
 contentBox.Parent = MainFrame
 contentBox.BackgroundTransparency = 1
-contentBox.Position = UDim2.new(0, 0, 0, 24)
-contentBox.Size = UDim2.new(1, 0, 1, -43)
+contentBox.Position = UDim2.new(0, 0, 0, 44)
+contentBox.Size = UDim2.new(1, 0, 1, -46)
 contentBox.BorderSizePixel = 0
 
 local function createTabFrame(key)
@@ -224,11 +221,11 @@ local function createTabFrame(key)
     Instance.new("UICorner", scroll).CornerRadius = UDim.new(0, 8)
     local layout = Instance.new("UIListLayout", scroll)
     layout.HorizontalAlignment = Enum.HorizontalAlignment.Center
-    layout.Padding = UDim.new(0, 3)
+    layout.Padding = UDim.new(0, 4)
     layout.SortOrder = Enum.SortOrder.LayoutOrder
     local padding = Instance.new("UIPadding", scroll)
-    padding.PaddingTop = UDim.new(0, 3)
-    padding.PaddingBottom = UDim.new(0, 3)
+    padding.PaddingTop = UDim.new(0, 4)
+    padding.PaddingBottom = UDim.new(0, 4)
     tabFrames[key] = scroll
 end
 
@@ -239,11 +236,20 @@ local function switchTab(key)
     currentTab = key
     for name, frame in pairs(tabFrames) do frame.Visible = (name == key) end
     for name, button in pairs(tabButtons) do
-        tweenTo(button, {TextColor3 = (name == key) and Colors.Accent or Colors.TextDim})
-    end
-    for _, config in ipairs(tabConfig) do
-        if config.key == key then
-            tweenTo(tabIndicator, {Position = UDim2.new(config.x, 0, 0, 0)})
+        if name == key then
+            -- Active: purple gradient pill
+            tweenTo(button, {BackgroundColor3 = Colors.Accent, BackgroundTransparency = 0, TextColor3 = Color3.fromRGB(255, 255, 255)})
+            -- Ensure gradient exists
+            if not button:FindFirstChildOfClass("UIGradient") then
+                local grad = Instance.new("UIGradient", button)
+                grad.Color = ColorSequence.new(Colors.Accent, Color3.fromRGB(129, 140, 248))
+                grad.Rotation = 135
+            end
+        else
+            -- Inactive: transparent
+            tweenTo(button, {BackgroundTransparency = 1, TextColor3 = Colors.TextDim})
+            local grad = button:FindFirstChildOfClass("UIGradient")
+            if grad then grad:Destroy() end
         end
     end
 end
@@ -253,6 +259,8 @@ for key, button in pairs(tabButtons) do
 end
 
 -- ================= MINIMIZE / SHIELD PILL =================
+local shieldIcon = nil
+local shieldHit = nil
 local isMinimized = false
 minimizeButton.MouseButton1Click:Connect(function()
     isMinimized = not isMinimized
@@ -262,42 +270,42 @@ minimizeButton.MouseButton1Click:Connect(function()
         tabBar.Visible = false
         contentBox.Visible = false
         accentLine.Visible = false
-        tabAccentLine.Visible = false
-        -- Shrink to small shield square
-        tweenTo(MainFrame, {Size = UDim2.new(0, 28, 0, 28), BackgroundTransparency = 0.15}, tweenSmooth)
+        -- Shrink to shield square (bigger for mobile tap)
+        tweenTo(MainFrame, {Size = UDim2.new(0, 40, 0, 40), BackgroundTransparency = 0.15}, tweenSmooth)
         -- Show shield icon
-        shieldIcon.Visible = true
-        shieldHit.Visible = true
+        if shieldIcon then shieldIcon.Visible = true end
+        if shieldHit then shieldHit.Visible = true end
     else
+        if shieldIcon then shieldIcon.Visible = false end
+        if shieldHit then shieldHit.Visible = false end
         tweenTo(MainFrame, {Size = UDim2.new(0, 310, 0, 195), BackgroundTransparency = 0.60}, tweenSmooth)
         task.delay(0.25, function()
             HeaderBar.Visible = true
             tabBar.Visible = true
             contentBox.Visible = true
             accentLine.Visible = true
-            tabAccentLine.Visible = true
         end)
     end
 end)
 
 -- Shield icon (visible when minimized, acts as re-open button)
-local shieldIcon = Instance.new("TextLabel")
+shieldIcon = Instance.new("TextLabel")
 shieldIcon.Parent = MainFrame
 shieldIcon.BackgroundTransparency = 1
 shieldIcon.Size = UDim2.new(1, 0, 1, 0)
 shieldIcon.Font = Enum.Font.GothamBold
 shieldIcon.Text = "🛡️"
-shieldIcon.TextSize = 14
+shieldIcon.TextSize = 18
 shieldIcon.ZIndex = 2
-shieldIcon.Visible = false  -- hidden when expanded
+shieldIcon.Visible = false
 
 -- Clicking shield when minimized re-opens
-local shieldHit = Instance.new("TextButton", MainFrame)
+shieldHit = Instance.new("TextButton", MainFrame)
 shieldHit.BackgroundTransparency = 1
 shieldHit.Size = UDim2.new(1, 0, 1, 0)
 shieldHit.Text = ""
 shieldHit.ZIndex = 3
-shieldHit.Visible = false  -- hidden when expanded
+shieldHit.Visible = false
 
 shieldHit.MouseButton1Click:Connect(function()
     if isMinimized then
@@ -310,7 +318,6 @@ shieldHit.MouseButton1Click:Connect(function()
             tabBar.Visible = true
             contentBox.Visible = true
             accentLine.Visible = true
-            tabAccentLine.Visible = true
         end)
     end
 end)
@@ -327,6 +334,10 @@ local function CreateToggle(parent, text, callback, layoutOrder)
     frame.BorderSizePixel = 0
     frame.LayoutOrder = layoutOrder or 0
     Instance.new("UICorner", frame).CornerRadius = UDim.new(0, 8)
+    local frameStroke = Instance.new("UIStroke", frame)
+    frameStroke.Color = Color3.fromRGB(255, 255, 255)
+    frameStroke.Transparency = 0.92
+    frameStroke.Thickness = 1
 
     local label = Instance.new("TextLabel", frame)
     label.BackgroundTransparency = 1
@@ -346,6 +357,10 @@ local function CreateToggle(parent, text, callback, layoutOrder)
     switchTrack.Position = UDim2.new(1, -33, 0.5, -6)
     switchTrack.BorderSizePixel = 0
     Instance.new("UICorner", switchTrack).CornerRadius = UDim.new(1, 0)
+    local trackStroke = Instance.new("UIStroke", switchTrack)
+    trackStroke.Color = Color3.fromRGB(255, 255, 255)
+    trackStroke.Transparency = 0.92
+    trackStroke.Thickness = 1
 
     local switchDot = Instance.new("Frame", switchTrack)
     switchDot.BackgroundColor3 = Colors.ToggleKnob
@@ -392,6 +407,10 @@ local function CreateButton(parent, text, callback, layoutOrder)
     button.BorderSizePixel = 0
     button.LayoutOrder = layoutOrder or 0
     Instance.new("UICorner", button).CornerRadius = UDim.new(0, 8)
+    local btnStroke = Instance.new("UIStroke", button)
+    btnStroke.Color = Colors.Accent
+    btnStroke.Transparency = 0.75
+    btnStroke.Thickness = 1
 
     button.MouseButton1Click:Connect(function()
         tweenTo(button, {BackgroundColor3 = Colors.Accent, BackgroundTransparency = 0.3})
@@ -425,6 +444,10 @@ local function CreateInfoLabel(parent, text, layoutOrder)
     label.BorderSizePixel = 0
     label.LayoutOrder = layoutOrder or 0
     Instance.new("UICorner", label).CornerRadius = UDim.new(0, 6)
+    local infoStroke = Instance.new("UIStroke", label)
+    infoStroke.Color = Color3.fromRGB(255, 255, 255)
+    infoStroke.Transparency = 0.92
+    infoStroke.Thickness = 1
     return label
 end
 
@@ -436,6 +459,10 @@ local function CreateStepper(parent, text, minVal, maxVal, step, default, callba
     frame.BorderSizePixel = 0
     frame.LayoutOrder = layoutOrder or 0
     Instance.new("UICorner", frame).CornerRadius = UDim.new(0, 8)
+    local stepFrameStroke = Instance.new("UIStroke", frame)
+    stepFrameStroke.Color = Color3.fromRGB(255, 255, 255)
+    stepFrameStroke.Transparency = 0.92
+    stepFrameStroke.Thickness = 1
 
     local label = Instance.new("TextLabel", frame)
     label.BackgroundTransparency = 1
