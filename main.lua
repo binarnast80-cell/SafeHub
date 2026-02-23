@@ -979,6 +979,7 @@ CreateToggle(exploitsTab, "⚡ Fix Power", function(state)
             local character = LocalPlayer.Character
             if not character then fixPowerActive = false return end
             local hrp = character:FindFirstChild("HumanoidRootPart")
+            local humanoid = character:FindFirstChildOfClass("Humanoid")
             if not hrp then fixPowerActive = false return end
 
             -- Save position before teleport
@@ -989,12 +990,22 @@ CreateToggle(exploitsTab, "⚡ Fix Power", function(state)
                 LocalPlayer.CameraMode = Enum.CameraMode.LockFirstPerson
             end)
 
-            -- Teleport to Power Station (old-script method: 1000x loop)
+            -- Stop all movement first
+            pcall(function()
+                hrp.Velocity = Vector3.new(0, 0, 0)
+                hrp.AssemblyLinearVelocity = Vector3.new(0, 0, 0)
+                hrp.AssemblyAngularVelocity = Vector3.new(0, 0, 0)
+            end)
+
+            -- Teleport: use PivotTo on character + CFrame on HRP (multiple passes)
             for i = 1, 1000 do
+                pcall(function() character:PivotTo(POWER_STATION_CFRAME) end)
                 hrp.CFrame = POWER_STATION_CFRAME
             end
+
+            -- Anchor to prevent physics from moving us
             hrp.Anchored = true
-            task.wait(0.2)
+            task.wait(0.3)
 
             -- Fire StationStart to begin repair
             pcall(function()
@@ -1033,10 +1044,14 @@ CreateToggle(exploitsTab, "⚡ Fix Power", function(state)
             -- Done: unanchor and teleport back
             pcall(function() hrp.Anchored = false end)
             if fixPowerSavedCFrame then
-                pcall(function() hrp.CFrame = fixPowerSavedCFrame end)
+                task.wait(0.1)
+                for i = 1, 100 do
+                    pcall(function() character:PivotTo(fixPowerSavedCFrame) end)
+                    hrp.CFrame = fixPowerSavedCFrame
+                end
                 fixPowerSavedCFrame = nil
             end
-            -- Restore camera to previous state (third-person if was on)
+            -- Restore camera to previous state
             pcall(function()
                 if thirdPersonEnabled then
                     LocalPlayer.CameraMode = Enum.CameraMode.Classic
@@ -1054,7 +1069,11 @@ CreateToggle(exploitsTab, "⚡ Fix Power", function(state)
                 if hrp then
                     pcall(function() hrp.Anchored = false end)
                     if fixPowerSavedCFrame then
-                        pcall(function() hrp.CFrame = fixPowerSavedCFrame end)
+                        task.wait(0.1)
+                        for i = 1, 100 do
+                            pcall(function() character:PivotTo(fixPowerSavedCFrame) end)
+                            hrp.CFrame = fixPowerSavedCFrame
+                        end
                         fixPowerSavedCFrame = nil
                     end
                 end
