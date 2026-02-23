@@ -908,7 +908,7 @@ end, 4)
 
 -- 4. Multi-Loot (sub-function — DISABLED when InstaOpen is off)
 local multiLootEnabled = false
-local multiLootFrame = CreateToggle(exploitsTab, "📦 Multi-Loot (grab all)", function(state)
+local multiLootFrame = CreateToggle(exploitsTab, "📦 Multi-Loot (grab all) {Beta}", function(state)
     if not instaOpenEnabled then return end
     multiLootEnabled = state
 end, 5)
@@ -917,15 +917,30 @@ multiLootOverlay = CreateDisabledOverlay(multiLootFrame)
 
 CreateSeparator(exploitsTab, 6)
 
--- 5. Bring Scrap
+-- 5. Bring Scrap (server-replicated via network ownership)
 CreateButton(exploitsTab, "🧲 Bring Scrap", function()
     pcall(function()
         local character = LocalPlayer.Character
-        if character then
-            for _, item in pairs(Workspace.Filter.ScrapSpawns:GetDescendants()) do
-                if item.Name:lower() == "scrap" then
-                    item:PivotTo(character:GetPivot())
-                end
+        if not character then return end
+        local hrp = character:FindFirstChild("HumanoidRootPart")
+        if not hrp then return end
+        local targetCF = hrp.CFrame * CFrame.new(0, 0, -3)
+        for _, item in pairs(Workspace.Filter.ScrapSpawns:GetDescendants()) do
+            if item.Name:lower() == "scrap" and item:IsA("BasePart") then
+                pcall(function()
+                    item.Anchored = false
+                    item.CanCollide = true
+                    item.CFrame = targetCF
+                end)
+            elseif item.Name:lower() == "scrap" and item:IsA("Model") then
+                pcall(function()
+                    for _, part in pairs(item:GetDescendants()) do
+                        if part:IsA("BasePart") then
+                            part.Anchored = false
+                        end
+                    end
+                    item:PivotTo(targetCF)
+                end)
             end
         end
     end)
@@ -938,44 +953,23 @@ CreateButton(exploitsTab, "🚪 Open SafeHouse", function()
     end)
 end, 9)
 
--- 8. Open ObservationTower door (BindableEvent + DoorLever prompts)
+-- 8. Open ObservationTower door (BoolValues + server Event)
 CreateButton(exploitsTab, "🗼 Open Tower", function()
     pcall(function()
-        local tower = Workspace.Map:FindFirstChild("ObservationTower")
-        if not tower then return end
-        local door = tower:FindFirstChild("Door")
-        if not door then return end
-
-        -- Fire the BindableEvent (main door mechanism)
-        local event = door:FindFirstChild("Event")
-        if event then
-            pcall(function() event:Fire("Door") end)
-            pcall(function() event:Fire() end)
-        end
-
-        -- Also fire ProximityPrompts on DoorLever / DeadBolt
-        for _, child in pairs({"DoorLever", "DoorLever2", "DeadBolt"}) do
-            local part = door:FindFirstChild(child)
-            if part then
-                for _, desc in pairs(part:GetDescendants()) do
-                    if desc:IsA("ProximityPrompt") then
-                        desc.HoldDuration = 0
-                        desc.MaxActivationDistance = 9e9
-                        desc.RequiresLineOfSight = false
-                        fireproximityprompt(desc)
-                    end
-                    if desc:IsA("ClickDetector") then
-                        fireclickdetector(desc)
-                    end
-                end
-            end
-        end
+        local door = Workspace.Map.ObservationTower.Door
+        door.DoorOpen.Value = true
+        door.FullClosed.Value = false
+        door.DoorOpening.Value = true
+        -- Also fire Event on server
+        pcall(function() door.Event:FireServer("Door") end)
+        pcall(function() door.Event:Fire("Door") end)
     end)
 end, 10)
 
 
--- 9. Fix Power (teleport to station + auto-repair until PowerLevel = 1000)
+-- 9. Fix Power (old-script TP logic + auto-repair until PowerLevel = 1000)
 local fixPowerActive = false
+local fixPowerSavedCFrame = nil
 local POWER_STATION_CFRAME = CFrame.new(-280.808014, 20.3924561, -212.159821, -0.10549771, -1.16743761e-08, -0.994419575, 9.45945828e-08, 1, -2.17754046e-08, 0.994419575, -9.63639621e-08, -0.10549771)
 
 CreateToggle(exploitsTab, "⚡ Fix Power", function(state)
@@ -988,15 +982,27 @@ CreateToggle(exploitsTab, "⚡ Fix Power", function(state)
             if not hrp then fixPowerActive = false return end
 
             -- Save position before teleport
-            local savedCFrame = hrp.CFrame
+            fixPowerSavedCFrame = hrp.CFrame
 
-            -- Teleport to Power Station
-            hrp.CFrame = POWER_STATION_CFRAME
-            task.wait(0.3)
+            -- Force first-person camera during fix
+            pcall(function()
+                LocalPlayer.CameraMode = Enum.CameraMode.LockFirstPerson
+            end)
 
-            -- Auto-repair loop: fire StationStart until PowerLevel = 1000
+            -- Teleport to Power Station (old-script method: 1000x loop)
+            for i = 1, 1000 do
+                hrp.CFrame = POWER_STATION_CFRAME
+            end
+            hrp.Anchored = true
+            task.wait(0.2)
+
+            -- Fire StationStart to begin repair
+            pcall(function()
+                Workspace.Map.PowerStation.StationFolder.RemoteEvent:FireServer("StationStart")
+            end)
+
+            -- Auto-repair loop: monitor PowerLevel until 1000
             while fixPowerActive do
-                -- Check if power is full
                 local level = nil
                 pcall(function()
                     level = ReplicatedStorage.PowerValues.PowerLevel.Value
@@ -1006,7 +1012,9 @@ CreateToggle(exploitsTab, "⚡ Fix Power", function(state)
                     break
                 end
 
-                -- Keep firing repair
+                -- Keep position locked at station
+                pcall(function() hrp.CFrame = POWER_STATION_CFRAME end)
+                -- Keep hammering repair
                 pcall(function()
                     Workspace.Map.PowerStation.StationFolder.RemoteEvent:FireServer("StationStart")
                 end)
@@ -1022,9 +1030,42 @@ CreateToggle(exploitsTab, "⚡ Fix Power", function(state)
                 task.wait(0.1)
             end
 
-            -- Done: unanchor if anchored
+            -- Done: unanchor and teleport back
+            pcall(function() hrp.Anchored = false end)
+            if fixPowerSavedCFrame then
+                pcall(function() hrp.CFrame = fixPowerSavedCFrame end)
+                fixPowerSavedCFrame = nil
+            end
+            -- Restore camera to previous state (third-person if was on)
             pcall(function()
-                if hrp then hrp.Anchored = false end
+                if thirdPersonEnabled then
+                    LocalPlayer.CameraMode = Enum.CameraMode.Classic
+                else
+                    LocalPlayer.CameraMode = Enum.CameraMode.LockFirstPerson
+                end
+            end)
+        end)
+    else
+        -- Manual toggle off: unanchor and teleport back
+        task.spawn(function()
+            local character = LocalPlayer.Character
+            if character then
+                local hrp = character:FindFirstChild("HumanoidRootPart")
+                if hrp then
+                    pcall(function() hrp.Anchored = false end)
+                    if fixPowerSavedCFrame then
+                        pcall(function() hrp.CFrame = fixPowerSavedCFrame end)
+                        fixPowerSavedCFrame = nil
+                    end
+                end
+            end
+            -- Restore camera
+            pcall(function()
+                if thirdPersonEnabled then
+                    LocalPlayer.CameraMode = Enum.CameraMode.Classic
+                else
+                    LocalPlayer.CameraMode = Enum.CameraMode.LockFirstPerson
+                end
             end)
         end)
     end
