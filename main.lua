@@ -259,66 +259,80 @@ for key, button in pairs(tabButtons) do
 end
 
 -- ================= MINIMIZE / SHIELD PILL =================
-local shieldIcon = nil
-local shieldHit = nil
-local isMinimized = false
-minimizeButton.MouseButton1Click:Connect(function()
-    isMinimized = not isMinimized
-    if isMinimized then
-        -- Hide everything except MainFrame itself
-        HeaderBar.Visible = false
-        tabBar.Visible = false
-        contentBox.Visible = false
-        accentLine.Visible = false
-        -- Shrink to shield square (bigger for mobile tap)
-        tweenTo(MainFrame, {Size = UDim2.new(0, 40, 0, 40), BackgroundTransparency = 0.15}, tweenSmooth)
-        -- Show shield icon
-        if shieldIcon then shieldIcon.Visible = true end
-        if shieldHit then shieldHit.Visible = true end
-    else
-        if shieldIcon then shieldIcon.Visible = false end
-        if shieldHit then shieldHit.Visible = false end
-        tweenTo(MainFrame, {Size = UDim2.new(0, 310, 0, 195), BackgroundTransparency = 0.60}, tweenSmooth)
-        task.delay(0.25, function()
-            HeaderBar.Visible = true
-            tabBar.Visible = true
-            contentBox.Visible = true
-            accentLine.Visible = true
-        end)
-    end
-end)
+-- Create shield elements FIRST (forward declare)
+local shieldBg = Instance.new("Frame")
+shieldBg.Name = "ShieldPill"
+shieldBg.Parent = MainFrame
+shieldBg.BackgroundColor3 = Colors.Background
+shieldBg.BackgroundTransparency = 0.15
+shieldBg.Size = UDim2.new(1, 0, 1, 0)
+shieldBg.Position = UDim2.new(0, 0, 0, 0)
+shieldBg.BorderSizePixel = 0
+shieldBg.ZIndex = 20
+shieldBg.Visible = false
+Instance.new("UICorner", shieldBg).CornerRadius = UDim.new(0, 12)
+local shieldStroke = Instance.new("UIStroke", shieldBg)
+shieldStroke.Color = Colors.Accent
+shieldStroke.Transparency = 0.5
+shieldStroke.Thickness = 1.5
 
--- Shield icon (visible when minimized, acts as re-open button)
-shieldIcon = Instance.new("TextLabel")
-shieldIcon.Parent = MainFrame
-shieldIcon.BackgroundTransparency = 1
-shieldIcon.Size = UDim2.new(1, 0, 1, 0)
-shieldIcon.Font = Enum.Font.GothamBold
-shieldIcon.Text = "🛡️"
-shieldIcon.TextSize = 18
-shieldIcon.ZIndex = 2
-shieldIcon.Visible = false
+-- Shield text (use simple text, not emoji — emoji breaks on mobile executors)
+local shieldLabel = Instance.new("TextLabel", shieldBg)
+shieldLabel.BackgroundTransparency = 1
+shieldLabel.Size = UDim2.new(1, 0, 1, 0)
+shieldLabel.Font = Enum.Font.GothamBold
+shieldLabel.Text = "SH"
+shieldLabel.TextColor3 = Colors.AccentLight
+shieldLabel.TextSize = 14
+shieldLabel.ZIndex = 21
 
--- Clicking shield when minimized re-opens
-shieldHit = Instance.new("TextButton", MainFrame)
+-- Shield hit button (clickable overlay)
+local shieldHit = Instance.new("TextButton", shieldBg)
 shieldHit.BackgroundTransparency = 1
 shieldHit.Size = UDim2.new(1, 0, 1, 0)
 shieldHit.Text = ""
-shieldHit.ZIndex = 3
-shieldHit.Visible = false
+shieldHit.ZIndex = 22
+shieldHit.Active = true
+
+local isMinimized = false
+
+-- Function to open (shared by minimize toggle and shieldHit)
+local function openPanel()
+    isMinimized = false
+    shieldBg.Visible = false
+    tweenTo(MainFrame, {Size = UDim2.new(0, 310, 0, 195), BackgroundTransparency = 0.60}, tweenSmooth)
+    task.delay(0.3, function()
+        HeaderBar.Visible = true
+        tabBar.Visible = true
+        contentBox.Visible = true
+        accentLine.Visible = true
+    end)
+end
+
+local function closePanel()
+    isMinimized = true
+    -- Hide UI elements
+    HeaderBar.Visible = false
+    tabBar.Visible = false
+    contentBox.Visible = false
+    accentLine.Visible = false
+    -- Show shield pill
+    shieldBg.Visible = true
+    -- Shrink MainFrame to 50x50 square
+    tweenTo(MainFrame, {Size = UDim2.new(0, 50, 0, 50), BackgroundTransparency = 0.15}, tweenSmooth)
+end
+
+minimizeButton.MouseButton1Click:Connect(function()
+    if isMinimized then
+        openPanel()
+    else
+        closePanel()
+    end
+end)
 
 shieldHit.MouseButton1Click:Connect(function()
     if isMinimized then
-        isMinimized = false
-        shieldIcon.Visible = false
-        shieldHit.Visible = false
-        tweenTo(MainFrame, {Size = UDim2.new(0, 310, 0, 195), BackgroundTransparency = 0.60}, tweenSmooth)
-        task.delay(0.25, function()
-            HeaderBar.Visible = true
-            tabBar.Visible = true
-            contentBox.Visible = true
-            accentLine.Visible = true
-        end)
+        openPanel()
     end
 end)
 
