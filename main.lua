@@ -2,7 +2,7 @@
 -- 🛡️ SAFE HUB V1.16.3: MATERIAL DESIGN | MOBILE-FIRST
 -- 🎮 Game: The Rake / Horror Games
 -- 📱 Target: Delta, Arceus X (Android, Iphone)
--- 👤 Author: ludvicgreat (SYFM guys. Educational only - Do not ask for updates)
+-- 👤 Author: ludvicgreat (Educational only - Do not ask for updates)
 -- ==============================================================================
 -- 📖 ABOUT THIS SCRIPT:
 -- This script was created as a free, public, and strictly educational resource 
