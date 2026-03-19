@@ -1,8 +1,24 @@
--- =====================================================
--- 🛡️ SAFE HUB V1.16.2: MATERIAL DESIGN | MOBILE-FIRST
+-- ==============================================================================
+-- 🛡️ SAFE HUB V1.16.3: MATERIAL DESIGN | MOBILE-FIRST
 -- 🎮 Game: The Rake / Horror Games
 -- 📱 Target: Delta, Arceus X (Android)
--- =====================================================
+-- 👤 Author: Bro12uran23
+-- ==============================================================================
+-- 📖 ABOUT THIS SCRIPT:
+-- This script was created as a free, public, and strictly educational resource 
+-- for familiarization with Lua programming, UI design, and game mechanics. 
+-- It is designed to help beginners and researchers understand how complex 
+-- client-side scripts operate under the hood.
+--
+-- 🏗️ CODE ARCHITECTURE & EXPLANATION:
+-- To maximize learning value, the source code is heavily commented and strictly 
+-- divided into logical parts, modules, and distinct functional sections. 
+-- You can easily navigate through the core services, UI generation, and 
+-- specific feature implementations.
+--
+-- ⚠️ DISCLAIMER: 
+-- Provided for educational purposes only. Learn, analyze, and code responsibly!
+-- ==============================================================================
 
 -- ================= SERVICES =================
 local CoreGui = (gethui and gethui()) or game:GetService("CoreGui")
@@ -116,7 +132,7 @@ titleLabel.BackgroundTransparency = 1
 titleLabel.Position = UDim2.new(0, 8, 0, 0)
 titleLabel.Size = UDim2.new(0.7, 0, 1, 0)
 titleLabel.Font = Enum.Font.GothamBold
-titleLabel.Text = "🛡️ SAFE HUB  v1.16.2"
+titleLabel.Text = "🛡️ SAFE HUB  v1.16.3"
 titleLabel.TextColor3 = Colors.AccentLight
 titleLabel.TextSize = 9
 titleLabel.TextXAlignment = Enum.TextXAlignment.Left
