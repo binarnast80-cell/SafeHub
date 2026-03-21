@@ -7,4 +7,5 @@ This file is the main guide for anyone landing on the repo. It includes:
 - Our core philosophy: 100% open-source, no obfuscation, no malware.
 
 I want people to know exactly what they're looking at the second they open this page. Read the docs, understand the code, and dont trust strangers.
+
 ⚠️ Disclaimer: This project is for educational purposes only.
